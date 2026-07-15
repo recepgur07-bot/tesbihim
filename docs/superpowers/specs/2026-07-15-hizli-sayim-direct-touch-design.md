@@ -55,13 +55,37 @@ keşif jestini uygulamaya yönlendirir. Yüzeyin sorumluluğu yalnızca şudur:
 `CounterViewModel` sayım, kalıcılık, hedef tamamlanması ve seçili Hızlı Sayım
 geri bildirimlerini mevcut tek noktadan yönetmeye devam eder.
 
+### Ölçülebilir dokunma sözleşmesi
+
+Bir sayım yalnızca şu koşulların tümü sağlanırsa üretilir: temas yüzeyde
+başladığında tek parmak vardır, o temasa ikinci parmak eklenmemiştir, parmak
+aynı temas dizisi içinde kalkmıştır ve temas iOS tarafından iptal edilmemiştir.
+Sayaç `touchesBegan` anında değil, bu başarılı tamamlanma anında artar.
+Birden çok parmakla başlayan, sonradan ikinci parmak eklenen, hareketle iptal
+edilen veya `touchesCancelled` alan temaslar sıfır artış üretir.
+
+Sayım/geri bildirim kuyruğu oluşturulmaz. Yüzey yalnızca hâlen etkin olan
+temas dizisini işleyebilir; mod kapatıldığında veya yüzey kaldırıldığında tüm
+takip edilen temas durumu sıfırlanır. `incrementFast()` içindeki mevcut
+de-bounce edilmiş duyuru da iptal edilebilir kalır; kullanıcı parmağını
+kaldırdıktan sonra yeni sayım ya da eski bir temasın geri bildirimi çalışmaz.
+
 ### Geçişte fazladan sayımı engelleme
 
 Doğrudan dokunma yüzeyi mod açma eylemi tamamlandıktan sonra eklenir; açılışı
 tetikleyen iki parmaklı jest hiçbir zaman yüzeye iletilmez. Mod kapatma
 eyleminde yüzey önce kaldırılır, normal erişilebilirlik davranışı sonra geri
-verilir. Yüzey çoklu parmaklı başlangıçları ayrıca yok sayar. Böylece açma ve
-kapatma jestleri +1 üretemez.
+verilir. Bu iki durum değişimi ana aktörde, tek bir `fastCountingEnabled`
+kaynağından yönetilir; kaldırılmış yüzey hiçbir kapanış sonrası teması işleyemez.
+Yüzey çoklu parmaklı başlangıçları ayrıca yok sayar. Böylece açma ve kapatma
+jestleri +1 üretemez.
+
+İki parmak çift dokunuşun `allowsDirectInteraction` etkinken de kök
+`.magicTap` eylemine ulaştığı, **uygulama kodundan önce**, VoiceOver açık gerçek
+cihaz prototipinde doğrulanmalıdır. Bu çalışmazsa tasarım uygulanmaz: kullanıcıyı
+hedef aramaya zorlamayan, ekran genelinde çalışan eşdeğer bir çıkış jesti için
+ayrı bir tasarım kararı alınır. Çalıştığı kanıtlanmadan görünür düğme ya da
+konuma bağlı alternatif varsayılmaz.
 
 ## Bileşen Sınırları
 
@@ -75,8 +99,9 @@ kapatma jestleri +1 üretemez.
 
 - Hızlı Sayım ayarı kapalıyken Sihirli Dokunuş hiçbir durum değişikliği yapmaz.
 - Mod açıkken ayar kapansa bile Sihirli Dokunuş çıkış olarak çalışır.
-- Sayaç ekranından ayrılma veya zikir seçimine gitme modu kapatır ve yüzeyi
-  kaldırır.
+- Sayaç ekranından ayrılma, zikir seçimine gitme, uygulamanın arka plana
+  alınması veya erişilebilirlik açısından modal bir arayüzün görünmesi modu
+  kapatır ve yüzeyi kaldırır. Uygulamaya dönüşte normal sayaç ekranı açılır.
 - İki ya da daha fazla parmakla başlayan bir dokunuş sayılmaz; sistemin
   Sihirli Dokunuş jesti korunur.
 - Hedef tamamlandığında mevcut `incrementFast()` davranışı (tur sıfırlama ve
@@ -89,7 +114,10 @@ Otomatik testler:
 - Hızlı Sayım ayarı varsayılanları ve `incrementFast()` geri bildirim ayrımı
   korunur.
 - Doğrudan dokunma yüzeyinin tek parmak girişini ilettiği, çoklu parmak
-  girişini iletmediği UIKit birim testiyle doğrulanır.
+  girişini iletmediği; ikinci parmak eklenen ve iptal edilen temasları saymadığı
+  UIKit birim testiyle doğrulanır.
+- Yüzey kaldırıldıktan sonra önceki temasın artık sayım veya geri bildirim
+  üretemediği test edilir.
 - Mevcut sayaç ve proje yapılandırma testlerinin tamamı çalışır.
 
 Gerçek cihazda VoiceOver ile kabul testi:
@@ -97,9 +125,12 @@ Gerçek cihazda VoiceOver ile kabul testi:
 1. Ekranın farklı köşelerinde iki parmak çift dokunma ile mod açılır.
 2. Mod açılırken sayı değişmez.
 3. Ekranın farklı köşelerinde tek parmak tek dokunma tam birer artış yapar.
-4. İki parmak çift dokunma ile mod her konumda kapanır; kapanırken sayı
+4. Mod açıkken, ekranın farklı köşelerinde iki parmak çift dokunma kök
+   Sihirli Dokunuş eylemini gerçekten tetikler ve modu kapatır; kapanırken sayı
    değişmez.
 5. Kapatıldıktan sonra tek dokunma tekrar yalnızca VoiceOver keşfi yapar.
+6. Hızlı art arda dokunmalar bırakıldıktan sonra sayı, ses veya titreşim geriden
+   devam etmez.
 
 ## Kapsam Dışı
 
