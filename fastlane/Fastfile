@@ -1,0 +1,21 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build number'ı artırıp yerelde derler (CI/TestFlight öncesi duman testi)"
+  lane :build do
+    increment_build_number(xcodeproj: "Tesbihim.xcodeproj")
+    build_app(
+      scheme: "Tesbihim",
+      project: "Tesbihim.xcodeproj",
+      skip_archive: true,
+      skip_package_ipa: true
+    )
+  end
+
+  desc "TestFlight'a dahili test için gönderir — App Store Connect kimlik bilgileri kurulana kadar kullanılamaz"
+  lane :beta do
+    increment_build_number(xcodeproj: "Tesbihim.xcodeproj")
+    build_app(scheme: "Tesbihim", project: "Tesbihim.xcodeproj")
+    upload_to_testflight
+  end
+end

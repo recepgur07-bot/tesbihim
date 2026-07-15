@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        # .xcodeproj commit edilmez (bkz. PLAN.md Bölüm 3) — tek doğruluk
+        # kaynağı project.yml'dir, bu adım her CI çalışmasında projeyi
+        # sıfırdan üretir. Üretimin ve sonraki build/test adımının
+        # başarılı olması, project.yml'in bozuk olmadığının kanıtıdır.
+        run: xcodegen generate
+
+      - name: Build and test
+        run: |
+          xcodebuild \
+            -project Tesbihim.xcodeproj \
+            -scheme Tesbihim \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            test
