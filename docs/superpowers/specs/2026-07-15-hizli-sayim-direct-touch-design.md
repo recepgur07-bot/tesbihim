@@ -28,6 +28,11 @@ asla fazladan sayım üretmemelidir.
 4. Kullanıcı yine ekranın herhangi bir yerinde iki parmakla çift dokunur.
    Bu, modu kapatır ve normal VoiceOver davranışını hemen geri getirir.
 
+Mod açıldığında ve kapandığında VoiceOver'a kısa, kesintiye uğratan tek bir
+durum duyurusu gönderilir: sırasıyla “Hızlı sayım açık” ve “Hızlı sayım
+kapalı”. Bu duyurular sayım geri bildirimi değildir; her mod değişiminde en
+fazla bir kez üretilir ve kuyruklanmaz.
+
 Hızlı modda öğe keşfi bilinçli olarak devre dışıdır: kullanıcının bu moda
 geçme amacı, doğrudan ve ritmik sayımdır. İki parmak çift dokunuş her zaman
 çıkış yoludur.
@@ -100,6 +105,8 @@ konuma bağlı alternatif varsayılmaz.
 
 - Hızlı Sayım ayarı kapalıyken Sihirli Dokunuş hiçbir durum değişikliği yapmaz.
 - Mod açıkken ayar kapansa bile Sihirli Dokunuş çıkış olarak çalışır.
+- Açma ve kapama duyurusu yalnızca durum gerçekten değiştiğinde bir kez
+  gönderilir; tekrarlı jestler eski duyuruları sıraya koymaz.
 - Sayaç ekranından ayrılma, zikir seçimine gitme, uygulamanın arka plana
   alınması veya erişilebilirlik açısından modal bir arayüzün görünmesi modu
   kapatır ve yüzeyi kaldırır. Uygulamaya dönüşte normal sayaç ekranı açılır.
@@ -125,11 +132,13 @@ Gerçek cihazda VoiceOver ile kabul testi:
 
 1. Ekranın farklı köşelerinde iki parmak çift dokunma ile mod açılır.
 2. Mod açılırken sayı değişmez.
+   VoiceOver bir kez “Hızlı sayım açık” der.
 3. Ekranın farklı köşelerinde tek parmak tek dokunma tam birer artış yapar.
 4. Mod açıkken, ekranın farklı köşelerinde iki parmak çift dokunma kök
    Sihirli Dokunuş eylemini gerçekten tetikler ve modu kapatır; kapanırken sayı
    değişmez.
 5. Kapatıldıktan sonra tek dokunma tekrar yalnızca VoiceOver keşfi yapar.
+   VoiceOver bir kez “Hızlı sayım kapalı” der.
 6. Hızlı art arda dokunmalar bırakıldıktan sonra sayı, ses veya titreşim geriden
    devam etmez.
 
