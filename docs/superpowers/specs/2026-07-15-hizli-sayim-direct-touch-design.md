@@ -1,7 +1,8 @@
 # Hızlı Sayım — Ekran Geneli Tek Dokunuş Tasarımı
 
 Tarih: 2026-07-15  
-Durum: Kullanıcı tasarımı onayladı; uygulama planına hazır.
+Durum: Kullanıcı tasarımı onayladı; gerçek cihazdaki çıkış-jesti prototip
+doğrulamasını bekliyor. Bu doğrulama geçmeden uygulama planına hazır değildir.
 
 ## Amaç
 
