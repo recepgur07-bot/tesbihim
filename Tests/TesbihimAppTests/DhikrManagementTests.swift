@@ -24,6 +24,20 @@ struct DhikrManagementTests {
         #expect(manager.activeDhikrs.contains { $0.id == "custom" })
     }
 
+    @Test @MainActor func eraseAllUserDataClearsCustomDhikrsAndOverridesButKeepsBundledLibrary() async {
+        let customRepo = MemoryCustomRepository([.sample(id: "custom")])
+        let stateRepo = MemoryStateRepository([])
+        let manager = DhikrLibraryViewModel(customRepository: customRepo, stateRepository: stateRepo)
+        manager.remove(id: "subhanallah")
+
+        await manager.eraseAllUserData()
+
+        #expect(manager.customDhikrs.isEmpty)
+        #expect(manager.states.isEmpty)
+        #expect(manager.activeDhikrs.contains { $0.id == "subhanallah" }, "Hazır zikir kütüphanesi kaynak tanımı silinmemeli")
+        #expect(!manager.activeDhikrs.contains { $0.id == "custom" })
+    }
+
     @Test @MainActor func permanentlyDeletingBundledDhikrIsRejected() {
         let customRepo = MemoryCustomRepository([])
         let stateRepo = MemoryStateRepository([])

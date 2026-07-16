@@ -15,8 +15,15 @@ struct CounterState: Codable, Equatable {
     var updatedAt: Date
     var lastIncrement: LastIncrement?
 
+    /// Artışın yapıldığı ana ait gün/zikir bilgisini taşır — Geri Al gece
+    /// yarısını aştıktan sonra bile artışın gerçekte hangi güne ve hangi
+    /// zikre ait olduğunu bilir, bugünün veya güncel seçili zikrin
+    /// geçmişine yanlış yazmaz.
     struct LastIncrement: Codable, Equatable {
         var completedTarget: Bool
+        var date: Date
+        var dhikrID: String
+        var dhikrNameSnapshot: String
     }
 
     static let initial = CounterState(
@@ -35,7 +42,7 @@ struct CounterState: Codable, Equatable {
     /// tamamlanan hedef sayısı bir artar. Dönüş değeri: bu artış bir hedefi
     /// tamamlattı mı (View katmanının anons metni üretmesi için).
     @discardableResult
-    mutating func increment() -> Bool {
+    mutating func increment(dhikrNameSnapshot: String = "") -> Bool {
         currentCount += 1
         var didCompleteTarget = false
         if let target, currentCount == target {
@@ -43,8 +50,14 @@ struct CounterState: Codable, Equatable {
             currentCount = 0
             didCompleteTarget = true
         }
-        lastIncrement = LastIncrement(completedTarget: didCompleteTarget)
-        updatedAt = Date()
+        let now = Date()
+        lastIncrement = LastIncrement(
+            completedTarget: didCompleteTarget,
+            date: now,
+            dhikrID: selectedDhikrID,
+            dhikrNameSnapshot: dhikrNameSnapshot
+        )
+        updatedAt = now
         return didCompleteTarget
     }
 

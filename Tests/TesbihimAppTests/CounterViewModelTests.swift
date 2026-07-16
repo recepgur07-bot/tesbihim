@@ -391,6 +391,47 @@ struct CounterViewModelTests {
         #expect(history.today.completedTargetCount == 0)
     }
 
+    @Test func undoAfterMidnightAppliesDeltaToOriginalDayNotToday() {
+        let historyRepository = InMemoryHistoryRepository()
+        let history = HistoryViewModel(repository: historyRepository)
+        let calendar = Calendar(identifier: .gregorian)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: Date())!
+
+        var counterState = CounterState.initial
+        counterState.currentCount = 1
+        counterState.lastIncrement = CounterState.LastIncrement(
+            completedTarget: false,
+            date: yesterday,
+            dhikrID: counterState.selectedDhikrID,
+            dhikrNameSnapshot: "Serbest Sayaç"
+        )
+        history.recordDelta(dhikrID: counterState.selectedDhikrID, dhikrName: "Serbest Sayaç", date: yesterday, addedCountDelta: 1, completedTargetDelta: 0)
+
+        let viewModel = makeViewModel(counterState: counterState, history: history)
+        #expect(history.today.addedCount == 0)
+
+        viewModel.undo()
+
+        #expect(history.today.addedCount == 0, "Geri Al, bugüne yanlışlıkla negatif/sıfırlanmış bir kayıt eklememeli")
+        #expect(history.entries.count == 1, "Yeni bir bugün kaydı oluşmamalı, sadece dünkü kayıt güncellenmeli")
+        #expect(history.entries.first?.addedCount == 0, "Dünkü kayıt kendi gününden düşülmeli, bugüne değil")
+        #expect(calendar.isDate(history.entries.first?.date ?? Date(), inSameDayAs: yesterday), "Güncellenen kayıt dünkü güne ait olmalı")
+    }
+
+    @Test func clearHistoryForDhikrIDOnlyRemovesThatDhikrsEntries() {
+        let history = HistoryViewModel(repository: InMemoryHistoryRepository())
+        let viewModel = makeViewModel(history: history)
+
+        viewModel.selectDhikr(id: "subhanallah", target: 33)
+        viewModel.increment()
+        viewModel.selectDhikr(id: "elhamdulillah", target: 33)
+        viewModel.increment()
+
+        viewModel.clearHistory(forDhikrID: "subhanallah")
+
+        #expect(history.entries.map(\.dhikrID) == ["elhamdulillah"])
+    }
+
     @Test func resetAllDataClearsCounterButNotHistory() {
         let history = HistoryViewModel(repository: InMemoryHistoryRepository())
         let viewModel = makeViewModel(history: history)
@@ -425,6 +466,29 @@ struct CounterViewModelTests {
         #expect(persisted.counter.currentCount == 1)
         #expect(persisted.entries.count == 1)
         #expect(persisted.entries[0].addedCount == 1)
+    }
+
+    @Test func reloadAfterCorruptionRecoversSafelyAndSurfacesWarning() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("bozuk-ana".utf8).write(to: directory.appendingPathComponent("counter-history.json"))
+        try Data("bozuk-yedek".utf8).write(to: directory.appendingPathComponent("counter-history.backup.json"))
+
+        let snapshotRepository = CounterHistoryRepository(directoryURL: directory)
+        let viewModel = CounterViewModel(
+            settingsRepository: InMemoryUserSettingsRepository(),
+            feedback: RecordingFeedbackProvider(),
+            announcer: RecordingAnnouncer(),
+            snapshotRepository: snapshotRepository
+        )
+
+        await viewModel.reloadUnifiedSnapshot()
+
+        #expect(viewModel.currentCount == 0, "Bozuk veriden sonra sessizce eski/yanlış bir sayı gösterilmemeli, güvenli sıfır durumuna dönülmeli")
+        #expect(viewModel.dataRecoveryWarning != nil, "Kurtarma sessiz olmamalı, kullanıcıya bildirilecek bir uyarı olmalı")
     }
 
     @Test func updateSettingsPersistsArbitraryFields() {

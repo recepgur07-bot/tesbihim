@@ -31,11 +31,11 @@ struct RootTabView: View {
             .tabItem { Label("Zikirler", systemImage: "book") }
             .tag(1)
 
-            GecmisView(counterViewModel: viewModel)
+            GecmisView(counterViewModel: viewModel, libraryViewModel: libraryViewModel)
                 .tabItem { Label("Geçmiş", systemImage: "clock") }
                 .tag(2)
 
-            AyarlarView(counterViewModel: viewModel)
+            AyarlarView(counterViewModel: viewModel, libraryViewModel: libraryViewModel)
                 .tabItem { Label("Ayarlar", systemImage: "gearshape") }
                 .tag(3)
         }

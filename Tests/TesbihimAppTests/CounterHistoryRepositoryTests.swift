@@ -35,6 +35,32 @@ struct CounterHistoryRepositoryTests {
         #expect(recovered.counter.currentCount == 7)
     }
 
+    @Test func corruptPrimaryAndBackupThrowsAndQuarantinesBothFiles() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let repository = CounterHistoryRepository(directoryURL: directory)
+        _ = try await repository.mutate { $0.counter.currentCount = 7 }
+        try Data("bozuk-ana".utf8).write(to: directory.appendingPathComponent("counter-history.json"))
+        try Data("bozuk-yedek".utf8).write(to: directory.appendingPathComponent("counter-history.backup.json"))
+
+        let freshRepository = CounterHistoryRepository(directoryURL: directory)
+        await #expect(throws: CounterHistoryRepository.RepositoryError.recoveredFromCorruption) {
+            try await freshRepository.load()
+        }
+
+        let files = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        #expect(!files.contains("counter-history.json"), "Bozuk ana dosya karantinaya taşınmalı, yerinde kalmamalı")
+        #expect(!files.contains("counter-history.backup.json"), "Bozuk yedek dosya karantinaya taşınmalı, yerinde kalmamalı")
+        #expect(files.contains { $0.hasPrefix("counter-history.corrupt-") }, "Ana dosyanın karantina kopyası saklanmalı")
+        #expect(files.contains { $0.hasPrefix("counter-history.backup.corrupt-") }, "Yedek dosyanın karantina kopyası saklanmalı")
+
+        let recoveredRepository = CounterHistoryRepository(directoryURL: directory)
+        let safeState = try await recoveredRepository.load()
+        #expect(safeState.counter.currentCount == 0, "Karantina sonrası bir sonraki yükleme güvenli, boş bir başlangıç durumu getirmeli")
+    }
+
     @Test func migratesLegacyCounterWithoutDiscardingItsCount() async throws {
         var legacy = CounterState.initial
         legacy.currentCount = 12

@@ -47,6 +47,10 @@ struct ReminderRequest: Equatable {
         await center.replaceRequests(removingPrefix: "\(dhikrID)_", with: requests); return true
     }
     func removeReminders(dhikrID: String) async { await center.replaceRequests(removingPrefix: "\(dhikrID)_", with: []) }
+    /// "Tüm Verilerimi Sil" — bkz. PLAN.md Bölüm 7.3. Boş önek her
+    /// bekleyen isteğin `hasPrefix` eşleşmesini sağlar, tüm hatırlatıcılar
+    /// kaldırılır.
+    func removeAllReminders() async { await center.replaceRequests(removingPrefix: "", with: []) }
 }
 
 @MainActor final class SystemNotificationCenter: NotificationCenterProviding {

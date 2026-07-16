@@ -57,10 +57,19 @@ final class HistoryViewModel {
         repository.save(entries)
     }
 
+    /// "Bu Zikrin Geçmişini Sil" — bkz. Bölüm 7.3. Yalnız verilen `dhikrID`
+    /// kayıtlarını siler, diğer zikirleri ve güncel sayacı etkilemez.
+    func clearHistory(forDhikrID dhikrID: String) {
+        entries.removeAll { $0.dhikrID == dhikrID }
+        repository.save(entries)
+    }
+
     /// Sayaç ekranındaki her artış/geri alma sonrası çağrılır; aynı gün +
-    /// aynı zikir için tek bir satırda toplanır.
-    func recordDelta(dhikrID: String, dhikrName: String? = nil, addedCountDelta: Int, completedTargetDelta: Int) {
-        let dayStart = calendar.startOfDay(for: Date())
+    /// aynı zikir için tek bir satırda toplanır. `date`, artışın gerçekte
+    /// yapıldığı anı taşır — Geri Al gece yarısını aştıktan sonra bile
+    /// bugüne değil, artışın ait olduğu güne yazılmasını sağlar.
+    func recordDelta(dhikrID: String, dhikrName: String? = nil, date: Date = Date(), addedCountDelta: Int, completedTargetDelta: Int) {
+        let dayStart = calendar.startOfDay(for: date)
         if let index = entries.firstIndex(where: { $0.dhikrID == dhikrID && calendar.isDate($0.date, inSameDayAs: dayStart) }) {
             entries[index].addedCount = max(0, entries[index].addedCount + addedCountDelta)
             entries[index].completedTargetCount = max(0, entries[index].completedTargetCount + completedTargetDelta)

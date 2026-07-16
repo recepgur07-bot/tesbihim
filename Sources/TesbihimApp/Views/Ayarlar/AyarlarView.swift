@@ -4,6 +4,7 @@ import SwiftUI
 /// uygulamasının tanıdık desenine uygun bölümlere ayrılmıştır.
 struct AyarlarView: View {
     var counterViewModel: CounterViewModel
+    var libraryViewModel: DhikrLibraryViewModel
     @State private var showingClearHistoryConfirmation = false
     @State private var showingClearAllConfirmation = false
 
@@ -92,7 +93,7 @@ struct AyarlarView: View {
             .alert("Geçmiş Silinsin mi?", isPresented: $showingClearHistoryConfirmation) {
                 Button("İptal", role: .cancel) {}
                 Button("Sil", role: .destructive) {
-                    historyViewModel.clearHistory()
+                    counterViewModel.clearHistory()
                 }
             } message: {
                 Text("Bugün/Bu Hafta/Toplam kayıtları silinir. Güncel zikir sayacınız etkilenmez. Bu işlem geri alınamaz.")
@@ -100,11 +101,15 @@ struct AyarlarView: View {
             .alert("Tüm Veriler Silinsin mi?", isPresented: $showingClearAllConfirmation) {
                 Button("İptal", role: .cancel) {}
                 Button("Sil", role: .destructive) {
-                    historyViewModel.clearHistory()
-                    counterViewModel.resetAllData()
+                    Task {
+                        counterViewModel.clearHistory()
+                        counterViewModel.resetAllData()
+                        counterViewModel.resetSettingsToDefault()
+                        await libraryViewModel.eraseAllUserData()
+                    }
                 }
             } message: {
-                Text("Geçmiş kayıtları ve güncel zikir sayaç durumu tamamen silinir. Bu işlem geri alınamaz.")
+                Text("Geçmiş kayıtları, güncel zikir sayaç durumu, özel zikirleriniz, zikir ayarlarınız, hatırlatıcılarınız ve tercihleriniz tamamen silinir. Bu işlem geri alınamaz.")
             }
         }
     }
@@ -185,5 +190,5 @@ struct AyarlarView: View {
 }
 
 #Preview {
-    AyarlarView(counterViewModel: CounterViewModel())
+    AyarlarView(counterViewModel: CounterViewModel(), libraryViewModel: DhikrLibraryViewModel())
 }

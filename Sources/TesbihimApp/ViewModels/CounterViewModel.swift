@@ -60,7 +60,27 @@ final class CounterViewModel {
             unifiedPersistenceError = nil
         } catch {
             unifiedPersistenceError = error
+            // Bozuk dosyalar karantinaya alındı; bir sonraki yükleme
+            // güvenli, boş bir başlangıç durumu getirir. Uygulama bu
+            // durumla açılabilsin diye tekrar denenir, ancak hata yine de
+            // kullanıcıya bildirilmek üzere `unifiedPersistenceError`'da
+            // saklı kalır — sessiz sıfırlama değildir.
+            if let recovered = try? await snapshotRepository.load() {
+                state = recovered.counter
+                history.replaceEntries(recovered.entries)
+            }
         }
+    }
+
+    /// Karantina sonrası kurtarma sonucu, doğrudan bir programlama hatası
+    /// değil kullanıcıya bildirilmesi gereken bir veri durumudur — bkz.
+    /// Bölüm 7.3 "sessiz sıfırlama olmaması".
+    var dataRecoveryWarning: String? {
+        guard let unifiedPersistenceError,
+              let repositoryError = unifiedPersistenceError as? CounterHistoryRepository.RepositoryError,
+              repositoryError == .recoveredFromCorruption
+        else { return nil }
+        return "Geçmiş ve sayaç verisi okunamadığı için güvenli bir başlangıç durumuna dönüldü. Önceki veri cihazda saklandı, kalıcı olarak silinmedi."
     }
 
     /// Sıraya alınmış birleşik yazımın bitmesini bekler. Görünüm bunu
@@ -134,10 +154,11 @@ final class CounterViewModel {
     /// eklenir.
     func increment(milestoneInterval: Int? = nil, soundOverride: SettingOverride = .inherit, hapticOverride: SettingOverride = .inherit) {
         let target = state.target
-        let didCompleteTarget = state.increment()
+        let didCompleteTarget = state.increment(dhikrNameSnapshot: selectedDhikrDisplayName)
         history.recordDelta(
             dhikrID: state.selectedDhikrID,
             dhikrName: selectedDhikrDisplayName,
+            date: state.lastIncrement?.date ?? Date(),
             addedCountDelta: 1,
             completedTargetDelta: didCompleteTarget ? 1 : 0
         )
@@ -158,10 +179,11 @@ final class CounterViewModel {
     /// denge gerektirdiği görüldü (bkz. Bölüm 6.4/7).
     func incrementFast(milestoneInterval: Int? = nil, soundOverride: SettingOverride = .inherit, hapticOverride: SettingOverride = .inherit) {
         let target = state.target
-        let didCompleteTarget = state.increment()
+        let didCompleteTarget = state.increment(dhikrNameSnapshot: selectedDhikrDisplayName)
         history.recordDelta(
             dhikrID: state.selectedDhikrID,
             dhikrName: selectedDhikrDisplayName,
+            date: state.lastIncrement?.date ?? Date(),
             addedCountDelta: 1,
             completedTargetDelta: didCompleteTarget ? 1 : 0
         )
@@ -217,15 +239,14 @@ final class CounterViewModel {
     }
 
     func undo() {
-        guard state.canUndo else { return }
-        let wasTargetCompletion = state.lastIncrement?.completedTarget ?? false
-        let dhikrID = state.selectedDhikrID
+        guard let lastIncrement = state.lastIncrement else { return }
         state.undoLastIncrement()
         history.recordDelta(
-            dhikrID: dhikrID,
-            dhikrName: selectedDhikrDisplayName,
+            dhikrID: lastIncrement.dhikrID,
+            dhikrName: lastIncrement.dhikrNameSnapshot,
+            date: lastIncrement.date,
             addedCountDelta: -1,
-            completedTargetDelta: wasTargetCompletion ? -1 : 0
+            completedTargetDelta: lastIncrement.completedTarget ? -1 : 0
         )
         persist()
         feedback.countFeedback(playsSound: settings.soundEffectEnabled)
@@ -246,6 +267,21 @@ final class CounterViewModel {
         persist()
     }
 
+    /// "Geçmişi Sil" — bkz. Bölüm 7.3. Birleşik snapshot kullanılırken
+    /// silme işleminin diskte hemen yansıması için `historyViewModel`'i
+    /// doğrudan çağırmak yerine buradan geçilir.
+    func clearHistory() {
+        history.clearHistory()
+        persist()
+    }
+
+    /// "Bu Zikrin Geçmişini Sil" — bkz. Bölüm 7.3. Yalnız verilen zikrin
+    /// kayıtlarını siler, güncel sayacı ve diğer zikirleri etkilemez.
+    func clearHistory(forDhikrID dhikrID: String) {
+        history.clearHistory(forDhikrID: dhikrID)
+        persist()
+    }
+
     /// Ayarlar/Geçmiş ekranındaki "Tüm Verilerimi Sil" — bkz. Bölüm 7.3.
     /// Geçmiş kayıtları ayrıca `HistoryViewModel.clearHistory()` ile
     /// silinir; burası yalnızca güncel zikir sayaç durumunu sıfırlar.
@@ -259,6 +295,13 @@ final class CounterViewModel {
             lastIncrement: nil
         )
         persist()
+    }
+
+    /// "Tüm Verilerimi Sil" kapsamının bir parçası — bkz. Bölüm 7.3.
+    /// Ses/titreşim/Hızlı Sayım tercihlerini varsayılana döndürür.
+    func resetSettingsToDefault() {
+        settings = .initial
+        settingsRepository.save(settings)
     }
 
     private func persist() {

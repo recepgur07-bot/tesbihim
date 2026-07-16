@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct HistoryDailyDetailView: View {
     let title: String
@@ -26,10 +27,14 @@ struct HistoryDailyDetailView: View {
 }
 
 struct HistoryDhikrDetailView: View {
+    var counterViewModel: CounterViewModel
     let statistic: HistoryDhikrStatistic
     let allEntries: [HistoryEntry]
     let period: HistoryPeriod
     let referenceDate: Date
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var showingClearConfirmation = false
 
     private var calculator: HistoryStatisticsCalculator { HistoryStatisticsCalculator(referenceDate: referenceDate) }
     private var summary: HistoryPeriodSummary {
@@ -53,9 +58,24 @@ struct HistoryDhikrDetailView: View {
                     .accessibilityLabel("\(dayTitle(for: point.localDayKey)): \(point.detailText)")
                 }
             }
+            Section("Veri yönetimi") {
+                Button("Bu Zikrin Geçmişini Sil", role: .destructive) {
+                    showingClearConfirmation = true
+                }
+            }
         }
         .navigationTitle(statistic.name)
         .navigationBarTitleDisplayMode(.inline)
+        .alert("\(statistic.name) Geçmişi Silinsin mi?", isPresented: $showingClearConfirmation) {
+            Button("İptal", role: .cancel) {}
+            Button("Sil", role: .destructive) {
+                counterViewModel.clearHistory(forDhikrID: statistic.dhikrID)
+                UIAccessibility.post(notification: .screenChanged, argument: nil)
+                dismiss()
+            }
+        } message: {
+            Text("Yalnız \(statistic.name) zikrine ait geçmiş kayıtları silinir. Diğer zikirler ve güncel sayacınız etkilenmez. Bu işlem geri alınamaz.")
+        }
     }
 
     private func dayTitle(for key: String) -> String {

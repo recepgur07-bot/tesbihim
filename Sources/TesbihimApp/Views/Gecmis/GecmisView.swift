@@ -4,6 +4,7 @@ import UIKit
 /// Geçmiş ekranı — dönemsel özetler ve ayrıntı yolları.
 struct GecmisView: View {
     var counterViewModel: CounterViewModel
+    var libraryViewModel: DhikrLibraryViewModel
     @State private var selectedPeriod: DisplayPeriod = .today
     @State private var referenceDate = Date()
     @State private var showingClearHistoryConfirmation = false
@@ -16,6 +17,13 @@ struct GecmisView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let warning = counterViewModel.dataRecoveryWarning {
+                    Section {
+                        Text(warning)
+                            .accessibilityLabel(warning)
+                    }
+                }
+
                 Section("Dönem") {
                     Picker("Gösterilen dönem", selection: $selectedPeriod) {
                         ForEach(DisplayPeriod.allCases) { period in
@@ -51,6 +59,11 @@ struct GecmisView: View {
                 }
 
                 Section("Günlük dağılım") {
+                    if selectedPeriod == .week || selectedPeriod == .month {
+                        HistoryDailyBarChart(points: summary.dailyPoints, calculator: calculator)
+                            .listRowInsets(EdgeInsets())
+                            .padding()
+                    }
                     NavigationLink("Gün gün incele") {
                         HistoryDailyDetailView(
                             title: summary.rangeTitle,
@@ -69,6 +82,7 @@ struct GecmisView: View {
                         ForEach(summary.dhikrBreakdown, id: \.dhikrID) { item in
                             NavigationLink {
                                 HistoryDhikrDetailView(
+                                    counterViewModel: counterViewModel,
                                     statistic: item,
                                     allEntries: historyViewModel.entries,
                                     period: selectedPeriod.period,
@@ -94,19 +108,23 @@ struct GecmisView: View {
             .navigationTitle("Geçmiş")
             .alert("Geçmiş Silinsin mi?", isPresented: $showingClearHistoryConfirmation) {
                 Button("İptal", role: .cancel) {}
-                Button("Sil", role: .destructive) { historyViewModel.clearHistory() }
+                Button("Sil", role: .destructive) { counterViewModel.clearHistory() }
             } message: {
                 Text("Geçmiş kayıtları silinir. Güncel zikir sayacınız etkilenmez. Bu işlem geri alınamaz.")
             }
             .alert("Tüm Veriler Silinsin mi?", isPresented: $showingClearAllConfirmation) {
                 Button("İptal", role: .cancel) {}
                 Button("Sil", role: .destructive) {
-                    historyViewModel.clearHistory()
-                    counterViewModel.resetAllData()
-                    UIAccessibility.post(notification: .screenChanged, argument: nil)
+                    Task {
+                        counterViewModel.clearHistory()
+                        counterViewModel.resetAllData()
+                        counterViewModel.resetSettingsToDefault()
+                        await libraryViewModel.eraseAllUserData()
+                        UIAccessibility.post(notification: .screenChanged, argument: nil)
+                    }
                 }
             } message: {
-                Text("Geçmiş kayıtları ve güncel zikir sayaç durumu tamamen silinir. Bu işlem geri alınamaz.")
+                Text("Geçmiş kayıtları, güncel zikir sayaç durumu, özel zikirleriniz, zikir ayarlarınız, hatırlatıcılarınız ve tercihleriniz tamamen silinir. Bu işlem geri alınamaz.")
             }
         }
     }
@@ -174,5 +192,5 @@ private enum DisplayPeriod: CaseIterable, Identifiable {
 }
 
 #Preview {
-    GecmisView(counterViewModel: CounterViewModel())
+    GecmisView(counterViewModel: CounterViewModel(), libraryViewModel: DhikrLibraryViewModel())
 }

@@ -53,6 +53,18 @@ final class DhikrLibraryViewModel {
         customDhikrs.removeAll { $0.id == id }; states.removeAll { $0.dhikrID == id }
         customRepository.save(customDhikrs); persistStates(); Task { await reminderManager.removeReminders(dhikrID: id) }; return true
     }
+    /// "Tüm Verilerimi Sil" — bkz. PLAN.md Bölüm 7.3. Özel zikirleri, hazır
+    /// zikir override'larını (kaldırma/düzenleme durumu dahil) ve tüm
+    /// hatırlatıcıları kalıcı olarak siler. Hazır zikir kütüphanesinin
+    /// kaynak tanımına dokunmaz — o zaten değişmez.
+    func eraseAllUserData() async {
+        customDhikrs = []
+        states = []
+        customRepository.save(customDhikrs)
+        stateRepository.save(states)
+        await reminderManager.removeAllReminders()
+    }
+
     func remainingDays(for dhikr: ResolvedDhikr) -> Int? {
         guard dhikr.origin == .custom, let removedAt = dhikr.userState.removedAt else { return nil }
         return max(0, Int(ceil(removedAt.addingTimeInterval(30 * 86_400).timeIntervalSince(now()) / 86_400)))

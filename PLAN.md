@@ -926,7 +926,156 @@ kararlar bu tarihe bağımlı yapılmayacak.
   sessizce geriye gitmeyecek, başarısızlıkta anlaşılır erişilebilir uyarı
   verilecek.
 
-### Yayın kapısı (App Store'a göndermeden önce üçü birden sağlanmalı)
+### 11.1 App Store ekran görüntüsü otomasyonu (karar verildi, uygulama ertelendi)
+
+**Amaç:** Görme engelli ürün sahibinin Photoshop/Figma, Simulator veya App
+Store Connect ekranlarını görsel olarak tek tek incelemesine ihtiyaç
+duymadan; gerçek uygulama deneyimini doğru temsil eden, Türkçe ve İngilizce
+mağaza ekran görüntülerini tekrar üretilebilir biçimde hazırlamak.
+
+**Karar:** Ekran görüntüsü üretiminin ana motoru Fastlane Snapshot/Frameit
+olmayacak. Fastlane mevcut `build`/`beta` görevleri ve gerekirse onaylanmış
+metadata ile görsellerin son yüklenmesi için kullanılacak. Bunun nedeni,
+önceki Fastlane screenshot kurulumunda yaşanan Simulator/Xcode uyumluluğu ve
+görsel çıktı sorunlarını tekrar etmemektir.
+
+**Hedef akış (uygulamaya geçildiğinde):**
+
+1. Önce metin tabanlı bir screenshot brief oluşturulur: ekran sırası,
+   cihaz ailesi, `tr`/`en-US` metinleri, sabit örnek veri, her ekranın ana
+   fayda mesajı ve dosya adları. İlk dağıtım için yalnız Apple'ın güncel
+   gereksinimini karşılayan yüksek çözünürlüklü iPhone seti hedeflenir;
+   uygulama arayüzü farklıysa ek cihaz seti ayrıca üretilir.
+2. Xcode UI testleri uygulamayı deterministik örnek veri ve sabit durumla
+   Simulator'da açar, yalnız gerçek uygulama UI'ından ham ekran görüntüsü
+   alır. Açılış/onboarding, izin uyarıları, ağ bağımlılığı, animasyon ve
+   rastgele tarih/sayılar capture öncesinde sabitlenir.
+3. Repo içinde sürümlenen kodlu şablon; ham ekranı, başlığı, arka planı ve
+   gerekirse cihaz çerçevesini her dil için üretir. AI ile uydurulmuş uygulama
+   ekranı kullanılmaz. AI yalnız metin/kompozisyon önerisi, lisanslı arka
+   plan varlığı üretimi ve kalite denetimi için yardımcı olabilir; nihai
+   görselde uygulamanın fonksiyonu doğru gösterilmelidir.
+4. Otomatik kalite kapısı her PNG için boyut, yön, PNG/JPEG biçimi, alfa
+   kanalı olmaması, dosya sırası, başlık metninin locale ile eşleşmesi ve
+   taşma denetimi yapar. Codex, çıktıları görsel olarak inceler ve ürün
+   sahibine her ekranın ne gösterdiğini, üst başlığını ve saptanan riski
+   metinle açıklar. VoiceOver/Dynamic Type odaklı ek kontrol, gerçek
+   uygulama ekranının erişilebilir etiketi ve kritik UI durumuyla eşleşmesini
+   doğrular.
+5. Çıktılar önce yerel bir önizleme/rapor olarak saklanır. Ürün sahibinin
+   açık onayı olmadan App Store Connect'e görsel veya metadata yüklenmez.
+   Onaydan sonra App Store Connect API veya Fastlane `deliver` ile yalnız
+   hedef locale/cihaz seti yüklenir; mevcut mağaza görsellerinin üzerine
+   yazılacağı açıkça raporlanır.
+
+**Mağaza metni ve Fastlane'in kesin rolü:**
+
+- Normal App Store metinleri repoda düz, gözden geçirilebilir UTF-8 metin
+  dosyaları olarak tutulur: `fastlane/metadata/tr/` ve
+  `fastlane/metadata/en-US/`. Başlık, alt başlık, açıklama, anahtar kelime,
+  yenilikler, gizlilik ve destek URL'leri bu dizinlerden yönetilir; metin
+  önce burada değiştirilir, App Store Connect web formunda elle yazılmaz.
+- Mağaza ekranı üzerindeki başlıklar bu metadata dosyalarıyla karıştırılmaz.
+  Onlar, ekran kimliği ve locale'e göre ayrı bir screenshot brief/şablon
+  yapılandırmasında tutulur; örneğin `counter.hero.tr` ile
+  `counter.hero.en-US` aynı gerçek uygulama ekranının yerelleştirilmiş iki
+  başlığı olur. Böylece mağaza açıklaması ile pazarlama görselinin kısa
+  başlığı bağımsız ama izlenebilir kalır.
+- Fastlane'in sorumluluğu: mevcut `build` lane'i yerel build/duman testi,
+  `beta` lane'i TestFlight build yüklemesi, ileride eklenecek ayrı
+  metadata/görsel upload lane'i ise yalnız önceden üretilmiş ve doğrulanmış
+  `fastlane/metadata` ile screenshot çıktılarını App Store Connect'e
+  göndermektir. Screenshot alma, çerçeveleme ve tasarım üretimi bu lane'in
+  içinde yapılmaz.
+- Upload lane'i yeni binary üretmez, build numarası artırmaz ve App Store'a
+  gönderim başlatmaz. `deliver` yalnız metadata/görsel yükleme modunda
+  çalışır; önce dry-run/önizleme raporu üretir, sonra kullanıcının açık
+  onayıyla gerçek yükleme yapılır. Gönderim için ayrıca, ayrı bir release
+  lane'i ve o günkü sürüm/build doğrulaması gerekir.
+
+**Araç seçimi ve risk yönetimi:**
+
+- İlk tercih, repo denetiminde olan Xcode UI testleri + kodlu render +
+  App Store Connect yükleme katmanıdır. Bu zincir bağımlılıkları küçük,
+  çıktıları tekrar üretilebilir ve hata ayıklaması yapılabilir tutar.
+- StoreScreens gibi yeni tek-komut CLI/MCP araçları, aynı akışı daha kısa
+  yoldan kurabildiği için önce **3 ekran × 2 locale, yükleme yapmadan**
+  deneme olarak değerlendirilir. Çıktı ölçüleri, yerelleştirme ve erişilebilir
+  raporu kabul edilirse yardımcı araç olarak benimsenebilir; yeni araca kör
+  bağımlılık kurulmaz.
+- Maestro, erişilebilirlik ağacı üzerinden black-box Simulator otomasyonu
+  sunduğu için UI testlerine alternatif değil, özellikle VoiceOver etiketleri
+  ve akışlarını doğrulayan ikinci katman olarak değerlendirilir.
+- İlk üç ekran: (1) büyük sayaç, (2) zikir seçimi/kütüphane, (3) ayarlardaki
+  erişilebilirlik veya destek yüzeyi. Her ekran tek bir faydayı anlatacak;
+  giriş/splash ekranı mağaza ekranı olarak kullanılmayacak.
+
+**Uygulama öncesi zorunlu kararlar:** ekranların nihai sırası, hedef iPhone
+simülatörü, TR/EN başlık metinleri, sabit test verisi, arka plan/görsel stil
+profili ve App Store Connect API yetkilendirmesi. Bu girdiler yazılı biçimde
+onaylanmadan screenshot pipeline'ı kurulmaz. Apple'ın güncel screenshot
+ölçüleri ve App Review metadata kuralları, uygulama günü yeniden doğrulanır.
+
+### 11.2 App Store gönderim öncesi güvenlik kapısı (karar verildi, uygulama ertelendi)
+
+**Amaç:** App Store'a yanlış build, eksik metadata, kırık akış, erişilebilirlik
+regresyonu veya yanıltıcı mağaza içeriği göndermemek; olası ret nedenlerini
+gönderimden önce anlaşılır bir `Hazır / Bloklayıcı / Uyarı / Sonraki adım`
+raporunda toplamak.
+
+**Kural:** Normal build, TestFlight, metadata ve screenshot komutları App
+Store'a inceleme başlatamaz. `submit_for_review` yalnız ayrı release lane'inde
+bulunur; seçilen sürüm/build, yayın modu ve kullanıcının açık onayı olmadan
+çalıştırılmaz. Metadata veya screenshot güncellemesi için yeni binary
+üretilmez ve build numarası artırılmaz.
+
+**Dört zorunlu kapı:**
+
+1. **Uygulama kapısı:** Release archive güncel Xcode/Apple SDK ile oluşturulur
+   ve Xcode/App Store Connect doğrulamasından geçer. Birim/UI testleri,
+   açılış, ana akış, hata/boş durumları, gizlilik-destek bağlantıları,
+   onboarding, ayarlar ve satın alma/Restore Purchases akışları çalışan
+   build üzerinde test edilir. Placeholder, kırık düğme, çöken ekran veya
+   açıklamasız hata durumları bloklayıcıdır.
+2. **Erişilebilirlik kapısı:** Her kritik ekranda Xcode UI test
+   `performAccessibilityAudit` denetimi çalışır; etiket, kontrast ve metin
+   kesilmesi hataları giderilir. Ardından VoiceOver, Voice Control ve Switch
+   Control ile ana görevler gerçek kullanımda doğrulanır. Tesbihim için
+   Hızlı Sayım etkinleştirme/çıkış, normal sayma, Sayıyı Okut, geri alma,
+   sıfırlama, zikir seçimi ve satın alma geri yükleme bu kapsamdadır.
+3. **Mağaza/metadata kapısı:** Her hedef locale için ad, alt başlık, açıklama,
+   anahtar kelime, yenilikler, yaş derecelendirmesi, gizlilik beyanı,
+   gizlilik/destek URL'leri, screenshot setleri, IAP ad/açıklamaları ve App
+   Review iletişim/notları kontrol edilir. Fastlane `precheck`, URL
+   erişilebilirliği, placeholder/test metni ve bazı yanıltıcı metadata
+   risklerini hata seviyesinde tarar; sonuç Apple onayı yerine geçmez.
+4. **Operasyon kapısı:** Seçilen marketing version ile build numarası
+   eşleşir, build App Store Connect'te işlenmiş durumdadır, IAP'ler gerekli
+   ise kendi inceleme durumları doğrulanmıştır ve yayın modu (manuel,
+   onaydan sonra otomatik veya aşamalı) yazılı olarak seçilmiştir. Çıktı,
+   App Store Connect'ten okunarak tekrar doğrulanır; screenshot/asset
+   yüklemeleri işlenmiş ve doğru locale/cihaz setinde görünür olmalıdır.
+
+**Fastlane ve otomasyon sınırı:**
+
+- `build`: yerel build/duman testi; `beta`: TestFlight yüklemesi.
+- `check_metadata`: Fastlane `precheck` ile metadata risk taraması.
+- `upload_store_assets`: yalnız önceden onaylanmış metadata ve screenshot
+  çıktısını `deliver` ile yükler; HTML önizlemesi/raporu saklanır.
+- `submit_release`: ayrı lane; sürüm/build/metadata/IAP/yayın modu doğrulaması
+  ve kullanıcının açık onayından sonra `submit_for_review` çalıştırabilir.
+  Bu lane kurulmadan ve gerçek App Store Connect kaydı kontrol edilmeden
+  etkin sayılmaz.
+
+**Ortaklaştırma planı:** Tesbihim'deki ilk başarılı uygulamadan sonra bu dört
+kapı, kişisel yeniden kullanılabilir bir Codex skill'i ve proje-bağımsız
+release yapılandırması olarak paketlenir. Her iOS projesi yalnız bundle ID,
+locale'ler, IAP kararı, ekran planı, review notları ve yayın modunu sağlar;
+ortak araç `Hazır / Bloklayıcı / Uyarı / Doğrulananlar / Sonraki güvenli
+komut` raporunu üretir. Apple'ın güncel SDK, screenshot ve Review Guidelines
+kuralları her gerçek gönderim gününde resmi kaynaklardan yeniden doğrulanır.
+
+### Yayın kapısı (App Store'a göndermeden önce dördü birden sağlanmalı)
 
 1. VoiceOver açıkken normal sayma, Hızlı Sayım etkinleştirme/kapatma, geri
    al, sıfırla, zikir değiştirme ve satın alma geri yükleme sadece
@@ -937,6 +1086,9 @@ kararlar bu tarihe bağımlı yapılmayacak.
 3. StoreKit'te non-consumable entitlement, Restore Purchases, iptal/bekleyen
    işlem ve ürünlerin yüklenememesi senaryoları cihazda test edilmiş; IAP
    açıklamaları uygulamadaki gerçek değerle bire bir uyumlu.
+4. Bölüm 11.2'deki uygulama, erişilebilirlik, mağaza/metadata ve operasyon
+   kapılarının tamamı `Hazır` sonucuyla kapanmış; bloke eden madde yok ve
+   seçilen sürüm/build ile yayın modu açıkça doğrulanmış.
 
 ## 12. Yol Haritası — Aşama Sırası
 
@@ -958,25 +1110,45 @@ inşa etmeyeceğiz:
 2. Sayaç ekranı + veri modeli (zikir çekmenin çekirdek deneyimi)
 3. Hızlı Sayım / erişilebilirlik katmanı
 4. Zikir kütüphanesi (hazır zikirler; özel zikir ekleme Faz 2'de)
-5. Geçmiş + ayarlar. Geçmiş geçişi küçük UI eklemesi değil, şu sıralı ve her
-   biri ayrı test edilebilir alt adımlarla yürütülür:
-   1. Mevcut `CounterState` + `HistoryEntry` verisini yedekli biçimde sürümlü
-      `CounterHistorySnapshot` zarfına ve `localDayKey` modeline taşı.
-   2. `LastIncrement` gün/zikir snapshot'ını ve birleşik atomik repository
-      yazma sözleşmesini tamamla; gece yarısı Geri Al ve yazma hatası testlerini
-      geçir.
-   3. Saf dönem/istatistik hesaplayıcısını Bugün/Hafta/Ay/Tümü kurallarıyla
-      ekle ve sınır/eşitlik/ortalama testlerini geçir.
-   4. Ana Geçmiş ekranı, dönem seçimi, zikir ayrıntısı ve ayrı Gün Gün İncele
-      akışını kur.
-   5. Swift Charts grafiği + `accessibilityChartDescriptor`, Dynamic Type,
-      VoiceOver, Switch Control ve yerelleştirilmiş sayı biçimlerini doğrula.
-   6. Zikir özelinde geçmiş silme, tüm geçmişi silme, tüm veriyi silme ve
-      bozuk veri kurtarma akışlarını ekle/test et.
+5. **[TAMAMLANDI — 2026-07-16]** Geçmiş + ayarlar. Geçmiş geçişi küçük UI
+   eklemesi değil, şu sıralı ve her biri ayrı test edilebilir alt adımlarla
+   yürütüldü:
+   1. **[TAMAMLANDI]** Mevcut `CounterState` + `HistoryEntry` verisini
+      yedekli biçimde sürümlü `CounterHistorySnapshot` zarfına ve
+      `localDayKey` modeline taşı.
+   2. **[TAMAMLANDI]** `LastIncrement` gün/zikir/ad snapshot'ını
+      (`CounterState.LastIncrement.date/dhikrID/dhikrNameSnapshot`) ve
+      birleşik atomik repository yazma sözleşmesini tamamla; gece yarısı
+      Geri Al artık artışın yapıldığı güne yazar (bugüne değil) —
+      `undoAfterMidnightAppliesDeltaToOriginalDayNotToday` testiyle
+      doğrulandı.
+   3. **[TAMAMLANDI]** Saf dönem/istatistik hesaplayıcısını
+      Bugün/Hafta/Ay/Tümü kurallarıyla ekle ve sınır/eşitlik/ortalama
+      testlerini geçir.
+   4. **[TAMAMLANDI]** Ana Geçmiş ekranı, dönem seçimi, zikir ayrıntısı ve
+      ayrı Gün Gün İncele akışını kur.
+   5. **[TAMAMLANDI]** `HistoryDailyBarChart` (Swift Charts `BarMark`) +
+      `AXChartDescriptorRepresentable` tabanlı `accessibilityChartDescriptor`
+      Hafta/Ay dönemlerinde "Günlük dağılım" bölümünde eklendi; aynı sayılar
+      "Gün gün incele" alt ekranında tam metin olarak da bulunduğundan grafik
+      tek bilgi kaynağı değildir.
+   6. **[TAMAMLANDI]** Zikir özelinde geçmiş silme ("Bu Zikrin Geçmişini
+      Sil", `HistoryDhikrDetailView`), tüm geçmişi silme, tüm veriyi silme
+      (artık özel zikir, hazır zikir override, hatırlatıcı ve ayar verisini
+      de kapsar — `DhikrLibraryViewModel.eraseAllUserData()`,
+      `ReminderManager.removeAllReminders()`,
+      `CounterViewModel.resetSettingsToDefault()`) ve bozuk veri kurtarma
+      (`CounterHistoryRepository` karantina: ana+yedek dosya ikisi de
+      bozuksa zaman damgalı olarak kenara taşınır, sessiz sıfırlama yerine
+      `RepositoryError.recoveredFromCorruption` fırlatılır ve
+      `CounterViewModel.dataRecoveryWarning` ile Geçmiş ekranında
+      kullanıcıya bildirilir) akışları eklendi/test edildi.
 6. StoreKit entegrasyonu
 7. Cilalama: tema, ses, Liquid Glass detayları
 8. TestFlight'a çıkış, gerçek kullanıcı (yaşlı + VoiceOver) testi
-9. App Store gönderimi
+9. App Store gönderimi — önce Bölüm 11.2'nin dört kapısından geçilir; yalnız
+   açık onayla ayrı `submit_release` lane'i veya eşdeğer App Store Connect
+   işlemi kullanılır.
 
 Her aşama sonunda kısa bir durak noktası olacak: çalışan bir şey gösterip
 onay alıp bir sonrakine geçeceğiz — büyük patlama entegrasyonundan kaçınmak

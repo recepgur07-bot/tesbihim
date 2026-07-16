@@ -2,7 +2,13 @@ import Foundation
 
 /// Sayaç ve geçmişi tek dosyada seri, doğrulanabilir şekilde saklar.
 actor CounterHistoryRepository {
-    enum RepositoryError: Error { case invalidSnapshot }
+    /// `recoveredFromCorruption`: hem ana hem yedek dosya okunamadı/bozuktu;
+    /// ikisi de karantinaya alındı (adli inceleme için diskte saklanır,
+    /// silinmez) ve bir sonraki `load()` çağrısı güvenli, boş bir
+    /// başlangıç durumuna döner. Bu hata sessizce yutulmaz — çağıran taraf
+    /// (`CounterViewModel.unifiedPersistenceError`) kullanıcıya bildirebilir;
+    /// "sessiz sıfırlama olmaması" kuralı bu şekilde korunur.
+    enum RepositoryError: Error, Equatable { case invalidSnapshot, recoveredFromCorruption }
 
     private let fileURL: URL
     private let backupURL: URL
@@ -34,19 +40,40 @@ actor CounterHistoryRepository {
             snapshot = initial
             return initial
         }
-        let data = try Data(contentsOf: fileURL)
-        let decoded: CounterHistorySnapshot
-        do {
-            decoded = try decoder.decode(CounterHistorySnapshot.self, from: data)
-        } catch {
-            let backupData = try Data(contentsOf: backupURL)
-            decoded = try decoder.decode(CounterHistorySnapshot.self, from: backupData)
+        if let data = try? Data(contentsOf: fileURL),
+           let decoded = try? decoder.decode(CounterHistorySnapshot.self, from: data),
+           decoded.schemaVersion == CounterHistorySnapshot.currentSchemaVersion {
+            snapshot = decoded
+            return decoded
         }
-        guard decoded.schemaVersion == CounterHistorySnapshot.currentSchemaVersion else {
-            throw RepositoryError.invalidSnapshot
+
+        // Ana dosya okunamadı/bozuk/şema uyumsuz — son bilinen sağlam
+        // yedeği dene.
+        if let backupData = try? Data(contentsOf: backupURL),
+           let backupDecoded = try? decoder.decode(CounterHistorySnapshot.self, from: backupData),
+           backupDecoded.schemaVersion == CounterHistorySnapshot.currentSchemaVersion {
+            quarantine(fileURL)
+            try? encoder.encode(backupDecoded).write(to: fileURL, options: .atomic)
+            snapshot = backupDecoded
+            return backupDecoded
         }
-        snapshot = decoded
-        return decoded
+
+        // İkisi de bozuk: sessizce sıfırlamak yerine kanıtı karantinaya
+        // alıp açık bir hata fırlat. Karantina dosyaları temizlendiği için
+        // bir sonraki `load()` güvenli bir başlangıç durumuna döner.
+        quarantine(fileURL)
+        quarantine(backupURL)
+        throw RepositoryError.recoveredFromCorruption
+    }
+
+    /// Bozuk dosyayı silmeden, zaman damgalı bir adla kenara taşır — veri
+    /// kaybı sessizce olmasın, gerekirse elle incelenebilsin.
+    private func quarantine(_ url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        let quarantineName = "\(url.deletingPathExtension().lastPathComponent).corrupt-\(Int(Date().timeIntervalSince1970)).json"
+        let quarantineURL = url.deletingLastPathComponent().appendingPathComponent(quarantineName)
+        try? FileManager.default.removeItem(at: quarantineURL)
+        try? FileManager.default.moveItem(at: url, to: quarantineURL)
     }
 
     func mutate(_ operation: (inout CounterHistorySnapshot) -> Void) throws -> CounterHistorySnapshot {
