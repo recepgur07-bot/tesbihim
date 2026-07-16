@@ -210,7 +210,9 @@ edebilmek için.
   bağlantısıyla) keşfedilebilir kalacak
 
 ### Faz 2 (öncelik sırası: talep varsa iCloud → widget → Watch)
-- Özel zikir ekleme/düzenleme (Faz 1'den ertelendi — bkz. Faz 1 notu)
+- Zikir ekleme/düzenleme/silme, hazır ve özel zikirler için ortak, eşit
+  muameleli bir yönetim modeliyle (Faz 1'den ertelendi — bkz. Faz 1 notu,
+  detaylı akış Bölüm 7.7'de taslak halinde)
 - iCloud (CloudKit) senkronizasyonu — çakışma kuralı (oturum/olay tabanlı
   birleştirme, "son yazan kazanır" sayaç için sayım kaybettirebilir),
   silinen özel zikir, ilk indirme davranışı Faz 2 başında tasarlanacak
@@ -312,6 +314,21 @@ eklendi):**
   devre dışı bırak" ilkesi) — VoiceOver bunu otomatik olarak "soluk/pasif
   düğme" (`NotEnabled` trait) şeklinde okur, ayrı bir etiket işi gerekmez.
 
+**Manuel sayı düzeltme (eklendi, 2026-07-16 — Bölüm 7.7 incelemesi sırasında
+fark edilen boşluk)**: `CounterState` tek bir aktif sayaç tutar (zikir
+değişince sayım sıfırlanır, bkz. `CounterViewModel.selectDhikr`); bu yüzden
+"yanlışlıkla fazla/az saymayı düzeltme" yalnızca **o an aktif olan zikir**
+için anlamlı, Zikir Kütüphanesi listesindeki seçili olmayan zikirlerin ayrı
+bir kalıcı sayısı yoktur. Bu nedenle bu kontrol Ana Sayaç ekranına eklenir,
+Zikir Kütüphanesi listesine değil (bkz. Bölüm 7.7 madde 2 düzeltmesi):
+büyük sayı göstergesine (madde 3 — sayma yüzeyinin kendisi değil, üstündeki
+statik metin) dokunmak **"Sayıyı Ayarla"** sheet'ini açar; burada kullanıcı
+geçerli sayıyı doğrudan yeni bir tam sayıya eşitleyebilir. VoiceOver'da bu
+elemente `accessibilityHint`: *"Sayıyı doğrudan girmek için çift dokunun."*
+Bu, 2×2 alt aksiyon düzenine (madde 5) yeni bir görünür buton eklemez —
+sık kullanılmayan bir düzeltme aracı olduğu için mevcut sayı göstergesinin
+üzerine, ek bir kontrol yükü yaratmadan eklenir.
+
 ### 7.2 Zikir Kütüphanesi / Zikir Seç Ekranı — Akış (kesinleşti, 2026-07-15)
 
 - Liste, `List`/`Form` ile bölümlenmiş: "Namaz Sonrası Tesbihat", "Salavat",
@@ -349,34 +366,132 @@ eklendi):**
   `lineSpacing` Türkçe/İngilizce metne göre biraz daha açık tutulur ve
   Arapça kısmın varsayılan Dynamic Type başlangıç boyutu (ör. `.title2`)
   Türkçe okunuşa göre bir kademe büyük seçilir.
+- **Satır etkileşim modeli — Düzenle/Kaldır (eklendi, 2026-07-16, Bölüm
+  7.7 ile birlikte)**: satırın birincil eylemi değişmez (dokunma/çift dokunma
+  her zaman Zikir Detayı'na gider). Düzenle/Kaldır (Bölüm 7.7) buna ek,
+  ikincil eylemlerdir:
+  - **Görenler için**: her satırda görünür bir **"⋯" (Diğer İşlemler)**
+    düğmesi, açılan menüde "Düzenle" ve "Kaldır". İsteğe bağlı olarak
+    standart trailing `.swipeActions` (Düzenle/Kaldır) da eklenebilir; ama
+    Bölüm 7.6'daki "her swipe action'ın görünür, açık etiketli bir buton
+    karşılığı olacak" kuralı gereği swipe tek erişim yolu olamaz — "⋯"
+    düğmesi zaten bu görünür karşılığı sağladığı için swipe yalnızca bir
+    kısayoldur, zorunlu değildir.
+  - **VoiceOver için**: satıra `.accessibilityActions` ile **Özel Eylemler**
+    eklenir — "Düzenle", "Kaldır". Kullanıcı satırı seçip rotoru "Eylemler"e
+    çevirip yukarı/aşağı kaydırarak bu eylemlere ulaşır; VoiceOver'ın
+    varsayılan çift-dokunması yine Zikir Detayı'nı açar, Özel Eylemler bunu
+    değiştirmez, yalnızca ek bir erişim yolu sağlar.
+  - Hazır zikir + özel zikir aynı satır etkileşim modelinden geçer (Bölüm
+    7.7'deki "eşit muamele" kararıyla tutarlı); "Kaldır" onayı ve
+    Kaldırılanlar akışı Bölüm 7.7 madde 3'teki gibidir.
 - Editoryel künye: Zikir Detayı ekranında küçük, gizlenebilir bir "Kaynak"
   satırı (kaynak metin, sorumlu kişi, sürüm tarihi) — bkz. Bölüm 6 Faz 1
   "içerik editoryel süreci" maddesi; içerik yanlışsa Ayarlar'daki "Hata
   Bildir" akışına doğrudan bağlanır (o zikrin adı otomatik ön dolu gelir).
 
-### 7.3 Geçmiş Ekranı — Akış (kesinleşti, 2026-07-15)
+### 7.3 Geçmiş / İstatistikler Ekranı — Akış (revize edildi, 2026-07-16)
 
 Neyin sayıldığı kararı: **hem ham tekrar toplamı hem tamamlanan hedef
 sayısı**, ikisi birlikte gösterilir (biri diğerini gizlemez).
 
-- Üç kart, dikey sırayla: **Bugün / Bu Hafta / Toplam**. Her kart tek
-  erişilebilir blok (`combine`): "Bugün: 3 hedef tamamlandı, toplam 247
-  tekrar." Gün sınırı cihazın yerel saat dilimine göre gece yarısında
-  döner (basit kural, ileri saat dilimi/DST karmaşasına girilmez).
+- Ürün amacı, **genel dönemsel seyir ile zikir bazlı ilerlemeyi dengeli ve
+  sade sunmaktır**. Uygulama hem kör/VoiceOver kullanan hem gören kullanıcıya
+  aynı istatistikleri, ayrıntıları ve işlemleri verir; hiçbir bilgi yalnız
+  grafik, renk veya ikonla aktarılmaz.
+- Ana bilgi sırası: **Bugün**, **Genel Bakış**, **Bu Haftanın Seyri**,
+  **Zikirler**, **Dönemleri İncele**, en altta **Veri Yönetimi**.
+  - Bugün: tekrar + tamamlanan hedef; boşsa yargılamayan "Bugün henüz zikir
+    kaydı yok" metni.
+  - Genel Bakış: Bu Hafta ve Bu Ay için tekrar + zikir yapılan gün sayısı;
+    Tüm Zamanlar için toplam tekrar. Kartlar görsel düzende yan yana olabilir,
+    Dynamic Type'ta dikey akışa geçer ve VoiceOver'da mantıklı sırayla tek
+    anlamlı bloklar olarak okunur.
+  - Bu Haftanın Seyri: pazartesi-pazar sade çubuk grafik + doğal dil özeti
+    (toplam, aktif gün sayısı, en yoğun gün) + aynı verinin tam metinsel
+    karşılığı olan ayrı "Gün Gün İncele" alt ekranı. Grafik
+    `accessibilityChartDescriptor` ile gezilebilir olur.
+  - Zikirler: seçili dönemde tekrar sayısına göre sıralı zikir dökümü; her
+    satır tekrar + tamamlanan hedefi söyler ve zikir geçmişi ayrıntısına
+    açılır. Kaldırılmış/özel zikir adı `HistoryEntry` snapshot'ından gelir.
+  - Dönemleri İncele: **Bugün / Hafta / Ay / Tümü** seçimi. Hafta pazartesi-
+    pazar, ay takvim ayı, gün cihazın yerel saatinde gece yarısı sınırıdır.
+    Hafta ve Ay'da açık etiketli önceki/sonraki dönem düğmeleri bulunur;
+    gelecekteki döneme geçilemez.
+- Motivasyon dili sakin ve tarafsızdır. Seri/streak, seri kaybı, kırmızı
+  başarısız gün, rozet, seviye, puan ve liderlik tablosu yoktur. Bunun yerine
+  "Bu hafta 4 gün zikir yaptınız" ve "Geçen haftadan 320 tekrar fazla" gibi
+  bilgiler kullanılır.
+- Bugün/Hafta/Ay için toplam tekrar, tamamlanan hedef, zikir yapılan gün sayısı,
+  günlük ortalama, en çok yapılan zikir, en yoğun gün ve önceki eşdeğer dönemle
+  sayısal karşılaştırma hesaplanır. Günlük ortalama dönemin geçen bütün günleri
+  üzerinden hesaplanır; devam eden ayda gelecek günler paydaya katılmaz.
+  **Tümü** görünümünde uzun araların yanıltıcı kılacağı günlük ortalama ve
+  dönem karşılaştırması gösterilmez; toplam, hedef, aktif gün, en çok yapılan
+  zikir ve en yoğun gün korunur. Önceki dönemde veri yoksa yüzde üretilmez.
+  Hedef değişebildiği ve serbest sayaçta hedef bulunmadığı için "başarı
+  yüzdesi" gösterilmez.
 - Veri modeli: mevcut `CounterState`'e ek olarak günlük agregasyon tutan
-  hafif bir `HistoryEntry` (tarih, zikirId, eklenen miktar, hedef
-  tamamlandı mı) — tam olay/oturum log'u değil, sadece gün bazlı toplama
-  yetecek minimum kayıt (Bölüm 3'teki "aşırı mühendislik olmasın" ilkesiyle
-  tutarlı).
-- Kartların altında, kapalı başlayan bir **"Zikire Göre Dökümü Gör"**
-  açılır bölüm (disclosure) — Faz 1'de basit tutulur, varsayılan kapalı,
-  VoiceOver'a "Daraltılmış/Genişletilmiş" durumu `accessibilityValue` ile
-  bildirilir.
+  hafif bir `HistoryEntry` (`localDayKey`, zikirId, ad snapshot'ı, eklenen
+  miktar, `completedTargetCount: Int`) — tam olay/oturum log'u değil, sadece
+  gün bazlı toplama
+  yetecek minimum kayıt; oturum başlangıç/bitiş saati ve süre izlenmez.
+  `localDayKey`, kayıt anındaki yerel Gregoryen `yyyy-MM-dd` gününü korur;
+  sonraki saat dilimi/DST/takvim değişiklikleri eski kaydı başka güne taşımaz.
+  Mevcut `date: Date` kayıtları yedekli, sürümlü migrasyonla yeni biçime
+  kayıpsız taşınır. Bir günde birden çok hedef tamamlanabildiği için hedef
+  alanı boolean değildir.
+- Hesaplar görünümden ayrılır: dönem sınırları için takvim birimi, saf
+  istatistik hesaplayıcısı, zikir bazlı filtre/silme destekli geçmiş deposu ve
+  ekran seçimini yöneten `HistoryViewModel`. Tarih sınırları ve özetler sabit
+  takvim/saat ile birim test edilir.
+- Sayaç geçmişe tarihli tek bir delta komutuyla yazar. Sayma `+1` tekrar ve
+  varsa `+1` hedef; Geri Al son artışın özgün `localDayKey` değerine `-1`
+  tekrar ve varsa `-1` hedef; manuel sayı ayarı yalnız tur farkı kadar tekrar;
+  Sıfırla ile zikir/hedef değiştirme ise geçmişe sıfır delta uygular.
+  `CounterState.LastIncrement` gece yarısını aşan Geri Al için gün anahtarı,
+  zikir kimliği ve ad snapshot'ını kalıcı tutar. Manuel sayı ayarı, Sıfırla ve
+  zikir/hedef değiştirme `LastIncrement`ı temizler.
+- Sayaç + geçmiş ayrı yazılmaz. `CounterState` ve `[HistoryEntry]` tek sürümlü
+  `CounterHistorySnapshot` zarfında, tek `CounterHistoryRepository` üzerinden
+  atomik dosya değiştirmeyle kaydedilir. Yazma bitmeden UI/geri bildirim başarı
+  durumuna geçmez; hata eski zarfı korur. Bütün mutasyonlar tek repository
+  actor'ünde en güncel snapshot üzerine seri uygulanır; bağımsız bellek
+  kopyalarının son-yazan-kazanır ile veri ezmesine izin verilmez. Mevcut iki
+  UserDefaults anahtarı yedekli ve idempotent migrasyonla bu zarfa alınır;
+  geçerli snapshot varsa açılışta kanonik kabul edilir, eski anahtarlar yalnız
+  migrasyon artığı olarak temizlenir. Faz 1'in küçük günlük agrega hacminde
+  bu model, pending transaction/idempotency katmanından daha sade ve daha az
+  hata yüzeylidir; gerçek performans sorunu ölçülmeden ikinci sistem kurulmaz.
 - İki ayrı, açık etiketli, birbirine karıştırılmayacak buton: **"Geçmişi
   Sil"** (sadece geçmiş kayıtları) ve **"Tüm Verilerimi Sil"** (geçmiş +
   tüm zikir sayaç durumları — geri dönüşü olmayan tam sıfırlama). İkisi de
   Alert ile onay ister; Alert açıklaması net farkı söyler ("Bu işlem geri
-  alınamaz"); onay sonrası odak ekranın başlığına döner.
+  alınamaz"); onay sonrası odak ekranın başlığına döner. Bunlar istatistik
+  içeriğinin arasında değil, en alttaki **Veri Yönetimi** bölümündedir.
+- Zikir geçmişi ayrıntısında **"Bu Zikrin Geçmişini Sil"** bulunur; yalnız o
+  `dhikrID` kayıtlarını siler, diğer zikirleri ve güncel sayacı etkilemez.
+  **"Sayacı Sıfırla"** farklı bir işlemdir, geçmişi silmez ve Geçmiş ekranında
+  değil Sayaç/Zikir Detayı tarafında sunulur. Özel zikri kaldırmak veya kalıcı
+  silmek geçmiş snapshot'larını otomatik silmez.
+- "Tüm Verilerimi Sil" geçmiş, sayaç, özel zikir, hazır zikir override,
+  hatırlatıcı, ayar ve onboarding yerel verisini tek kanonik servisle atomik
+  biçimde siler; StoreKit hakkını silmez, yalnız yerel önbelleğini temizler.
+  Kısmi başarısızlıkta başarı duyurulmaz ve işlem öncesi yedekten geri dönülür.
+  Yedek birleşik snapshot dosyasını ve ilgili UserDefaults anahtarlarını birlikte
+  kapsar.
+  Bildirimler yalnız yerel silmeler başarıyla commit edildikten sonra iptal
+  edilir; kalıcı tamamlanma işareti uygulama kapanırsa sonraki açılışta bu son
+  adımın bitirilmesini sağlar.
+- Boş dönemde grafik yerine "Bu dönemde henüz kayıt yok" ve uygun olduğunda
+  "Zikirmatiğe Git" eylemi gösterilir. Silme sonucunda VoiceOver odağı anlamlı
+  başlığa taşınır ve sonuç kısa biçimde duyurulur.
+- Grafik descriptor'ı doğrudan görünür grafiğe bağlanır ve yinelenen görünmez
+  grafik öğesi oluşturulmaz. En büyük Dynamic Type'ta kartlar dikeyleşir,
+  içerik kesilmez. Switch Control dönem/önceki/sonraki kontrollerini standart
+  aktivasyonla kullanır; grafik hassas nokta seçimi zorunlu değildir. Bütün
+  sayılar görünür ve sesli değerlerde aynı yerelleştirilmiş `FormatStyle`
+  kaynağından gelir.
 - **Değerlendirme istemi (App Store review prompt) — düzeltildi (uzman
   görüşü sonrası)**: hedef tamamlanmasının **doğrudan sonucu olarak**
   tetiklenmeyecek — Apple bunu kullanıcı eylemini kesmeme ve istemi bir
@@ -481,6 +596,237 @@ Hiçbir ayar uzun basmayla açılmaz/değişmez.
 - **Dil etiketleme**: Arapça içerik geçen her yerde (Zikir Seç, Zikir
   Detayı, Sayaç'ta zikir adı) metin parçalarına doğru `accessibilityLanguage`
   atanır (Bölüm 7.2).
+
+### 7.7 Zikir Yönetimi (Ekle/Düzenle/Kaldır/Bildirim) — Kesinleşti
+    (2026-07-16, iki bağımsız uzman görüşü sentezlendi)
+
+**Kullanıcı kararı (2026-07-16)**: Faz 2'deki "özel zikir ekleme" tek yönlü
+bir ekleme değil, hazır ve özel zikirlerin **eşit muamele gördüğü tek bir
+yönetim modeli**. Kullanıcı hazır kütüphanedeki bir zikri de (ör.
+Sübhanallah) düzenleyebilir/kaldırabilir; kendi eklediğiyle aynı formdan geçer.
+
+**Veri modeli kararı**: Hazır kütüphanenin orijinal tanımı hiç değişmez;
+kaynak/sürüm bütünlüğü korunur. Ancak kullanıcı çalışma durumu kaynak
+`DhikrDefinition` içine doldurulmaz. Üç ayrı kavram tutulur:
+
+- `BundledDhikrDefinition`: kararlı kimlik, değişmez kaynak içerik ve
+  `contentVersion`.
+- `CustomDhikr`: kullanıcının oluşturduğu tam içerik kaydı.
+- `DhikrUserState`: alan override'ları, tamamlanma davranışı, hatırlatıcı
+  kimlikleri, ses/haptic override ve kaldırılma zamanı (`removedAt`).
+
+Override alanları **inherit / set / clear** üç durumunu ayırt eder; böylece
+"kaynağı kullan" ile "kullanıcı bu opsiyonel alanı bilerek boşalttı"
+karışmaz. Ekranlar iki kaynak türünü ortak bir `ResolvedDhikr` görünümüyle
+tüketir. Hazır kaynağın yeni sürümü yalnız inherit alanlara yansır;
+kullanıcı override'ları korunur. Bu, "Varsayılana Sıfırla" davranışını ve
+dini kaynak metnin geri getirilebilirliğini tek mutable kayıttan daha güvenli
+sağlar.
+
+1. **Ekle/Düzenle formu** (hazır ve özel zikir için aynı form):
+   - **Ad** (zorunlu)
+   - Arapça metin (opsiyonel)
+   - Anlam (opsiyonel)
+   - Hedef sayı (opsiyonel)
+   - Tamamlanma davranışı: "Dur" veya "Döngüsel devam et" (varsayılan:
+     mevcut davranış — dur + yeni tur, Bölüm 7.1 ile tutarlı)
+   - Hatırlatıcı (opsiyonel, aşağıda 4. madde)
+   - Ses/Titreşim override (opsiyonel, aşağıda 5. madde)
+   - **Aşama İşareti** (opsiyonel, eklendi 2026-07-16, aşağıda 5. madde)
+   - Kategori (opsiyonel, birkaç sabit kategori + "Diğer")
+   Form düzeni: **Ad + Hedef en üstte**, en erişilebilir konumda; Hatırlatıcı/
+   Ses/Kategori "Daha Fazla Seçenek" DisclosureGroup altında, varsayılan
+   kapalı — ekranı ilk bakışta boğmamak için.
+
+2. **Düzenleme**: Ekle/Düzenle formu, listede VoiceOver **Özel Eylemler**
+   ile hızlı erişilir (satırı açıp kapatmadan, bkz. Bölüm 7.2'deki satır
+   etkileşim modeli). Hazır zikirde "Varsayılana Sıfırla" butonu bu ekranda,
+   yalnızca değiştirilmişse görünür/etkin olur; VoiceOver'da yalnız etiketle
+   değil `accessibilityHint` ile de açıklanır (2. uzman görüşü):
+   *"Varsayılana Sıfırla, {ad} orijinal metnine dönecektir."*
+
+   **Düzeltme (2026-07-16)**: Manuel sayaç düzeltme (geçerli sayıyı
+   doğrudan yeni bir değere eşitleme) bu listeye ait **değildir** — tek bir
+   `CounterState` (aktif sayaç) olduğu ve zikir değişince sayım sıfırlandığı
+   için (bkz. `CounterViewModel.selectDhikr`), Zikir Kütüphanesi'ndeki
+   seçili olmayan bir zikrin ayrı, kalıcı bir sayısı yok. Bu kontrol Ana
+   Sayaç ekranına taşındı, yalnızca o an aktif zikir için geçerli — bkz.
+   Bölüm 7.1 "Manuel sayı düzeltme" eklentisi.
+
+3. **Kaldırma = geri alınabilir soft delete**: Hazır ve özel zikirde
+   `removedAt` set edilir, kayıt aktif listeden kalkar ve Zikir
+   Kütüphanesi'ndeki varsayılan kapalı "Kaldırılanlar" bölümünden geri
+   getirilebilir. Geri alınabilir bu işlem arayüzde "Sil" değil
+   **"Kaldır"** olarak adlandırılır. Onay metni:
+   "{ad}, Zikir Kütüphanesi'nden kaldırılacak. Kaldırılanlar bölümünden geri
+   getirebilirsiniz." Hazır zikir paket kaynağından kalıcı silinmez. Özel
+   zikir için yalnız Kaldırılanlar içindeki ayrıntıda, ayrı onaylı **"Kalıcı
+   Olarak Sil"** bulunur. Bu işlem geçmiş snapshot'larını otomatik silmez;
+   geçmiş yalnız Bölüm 7.3'teki ayrı "Geçmişi Sil" akışıyla silinir. "Tüm
+   Verilerimi Sil", tek bir özel zikri kalıcı silmenin yerine geçmez.
+
+   **2. uzman görüşü değerlendirmesi (iki aşamalı kaldırma modeli
+   korundu)**: 2. görüş, özel zikirlerde doğrudan tek adımlı kalıcı silmeyi
+   önerdi ("kullanıcı Sil dediğinde silinsin", "veritabanı şişkinliği"
+   gerekçesiyle). Bu proje için reddedildi: (a) veri hacmi (bir zikir kaydı
+   birkaç yüz bayt) "şişkinlik" iddiasını teknik olarak desteklemiyor; (b)
+   hedef kitle önceliği (Bölüm 1: önce yaşlı, sonra VoiceOver kullanıcıları)
+   göz önüne alındığında, bir Alert'i yanlışlıkla/refleksle onaylama riski
+   tremor/motor beceri zayıflığı olan kullanıcılarda gerçek bir tehlikedir
+   (bkz. Bölüm 5, 7.6 — uzun basma ve geri alınamaz aksiyonlardan kaçınma
+   ilkeleri); iki aşamalı model burada gerçek bir güvenlik ağıdır, sadece
+   dogma değil. Buna karşılık 2. görüşün Fotoğraflar/Notlar emsali ("Son
+   Silinenler" süreli otomatik temizlik) haklı bir noktaya işaret ediyor:
+   Kaldırılanlar'daki özel zikirler **30 gün** sonra otomatik ve sessizce
+   kalıcı silinir (hazır zikirler bu otomatik silmeden muaftır, kaynaktan
+   zaten geri getirilebilirler); bu süre Kaldırılanlar ekranında her kayıt
+   için açıkça gösterilir ("26 gün sonra kalıcı silinecek" gibi). Böylece
+   hem yanlışlıkla kalıcı kayıp riski önlenir hem de "hâlâ cihazımda mı
+   duruyor" güvensizliği süresiz birikmeye izin vermeyen bir üst sınırla
+   giderilir.
+
+   `HistoryEntry`, adı silinme anında değil **geçmiş kaydı oluşturulduğu
+   anda** snapshot olarak tutar; ayrıca ilişki/filtre için kararlı `dhikrID`
+   saklanır.
+
+4. **Bildirimler/Hatırlatıcılar** (kullanıcı kararı: olmalı):
+   - Zikir başına, opsiyonel, gün(ler) + saat seçimi — basit haftalık tekrar,
+     namaz vakti hesaplaması **yok** (Bölüm 6'daki "namaz vakti gibi ayrı
+     modüle kaymayan kapsam" kararıyla tutarlı, sadece düz saat/gün).
+     Gün seçiminde 7 günü teker teker işaretlemeye ek olarak tek dokunuşluk
+     bir **"Her Gün"** kısayolu bulunur (eklendi 2026-07-16) — bu yalnızca
+     bir UI kısayolu, alttaki haftalık tekrar modelini değiştirmez (7 günün
+     hepsini işaretlemekle aynı sonucu verir).
+   - İzin isteği **onboarding'de değil, kullanıcı ilk kez bir hatırlatıcı
+     kurduğu anda** istenir. Bölüm 7.5'teki "hiçbir izin isteği yok" kararı
+     onboarding'e özgüydü; bununla çelişmiyor çünkü izin artık kullanıcının
+     açık, bilinçli bir eylemine bağlı (contextual permission best practice).
+   - Bildirime dokunma doğrudan o zikrin sayaç ekranını açar.
+   - Bildirim metni sakin/nötr, suçlulaştırıcı değil (ör. "Sübhanallah için
+     hatırlatıcı zamanı" — "Neden hiç zikir çekmedin?" tarzı yok), Bölüm
+     8'deki genel ürün diliyle tutarlı.
+   - Form her açıldığında ve uygulama öne geldiğinde
+     `UNUserNotificationCenter.getNotificationSettings` ile gerçek durum
+     yeniden okunur. `.notDetermined` durumunda kullanıcı "Hatırlatıcıyı Aç"
+     dediğinde kısa bağlam açıklamasından sonra
+     `requestAuthorization([.alert, .sound])` çağrılır; badge istenmez.
+     `.denied` durumunda hatırlatıcı etkinmiş gibi kaydedilmez/schedule
+     edilmez.
+   - Reddedilmiş/geri çekilmiş durumda kalıcı metin: "Bildirimler kapalı. Bu
+     hatırlatıcı gönderilemez. iPhone Ayarları'nda Tesbihim bildirimlerini
+     açabilirsiniz." **"Bildirim Ayarlarını Aç"** düğmesi
+     `UIApplication.openNotificationSettingsURLString` ile doğrudan
+     uygulamanın bildirim ayarına gider. Dönüşte durum yenilenir ve VoiceOver
+     odağı güncellenen durum başlığına taşınır; çift anons yapılmaz.
+     (2. uzman görüşü genel `openSettingsURLString`'i önerdi; bu proje için
+     reddedildi — `openNotificationSettingsURLString` kullanıcıyı doğrudan
+     Bildirimler sayfasına götürüyor, genel Ayarlar'a düşüp oradan
+     Bildirimler'i manuel bulmaya göre VoiceOver/yaşlı kullanıcı için daha az
+     gezinme adımı gerektiriyor; daha spesifik API bu hedef kitlede tercih
+     sebebidir.)
+   - `authorizationStatus` yanında `alertSetting` ve `soundSetting` ayrı
+     değerlendirilir; izin verilmişken bildirim sesi sistemden kapalı olabilir.
+   - Hatırlatıcı istek kimliği `dhikrID + weekday + time` ile kararlıdır.
+     Düzenleme/kaldırma/kalıcı silme eski bekleyen istekleri temizler.
+     Bildirim yalnız `dhikrID` ile deep link kurar; kimlik kaldırılmış veya
+     bulunamıyorsa güvenli biçimde Kütüphane'ye açılır.
+   - Haftalık tekrar `UNCalendarNotificationTrigger` ile kurulur; takvim,
+     hafta günü, saat ve dakika açıkça verilir. Saat dilimi/DST değişimi gerçek
+     cihaz testine girer. Bu bildirimler `timeSensitive`/`critical` değildir.
+
+5. **Ses/Titreşim override — "yaratıcı mod"** (kullanıcı isteği):
+   - Ayarlar'daki global ses/titreşim profili varsayılan kalır; zikir başına
+     opsiyonel override bu global'i geçersiz kılar.
+   - Öneri (Claude): birkaç kürate edilmiş "tesbih tanesi" sesi (ahşap/cam/
+     klasik tık) + birkaç haptic karakteri (yumuşak/kesin/çift vuruş).
+     Serbest ses dosyası yükleme **yok** (dosya boyutu, telif, moderasyon
+     riski nedeniyle kapsam dışı). İlave kürate ses/haptic karakterleri
+     Destekçi paketiyle açılabilir; ancak ücretsiz global ses/titreşim
+     açık-kapalı, en az bir temel sistem sesi/haptic ve zikir başına
+     **"Global ayarı kullan / Açık / Kapalı"** seçimi ücretsiz kalır. Belirli
+     bir zikirde geri bildirimi kapatmak kozmetik değil konfor/erişilebilirlik
+     kontrolüdür. Kilit durumu VoiceOver'da yalnız renk veya simgeyle değil
+     metinle açıklanır. Dijital kilit StoreKit In-App Purchase kullanır.
+   - **Aşama İşareti (Milestone) — eklendi 2026-07-16**: zikir başına
+     opsiyonel bir tam sayı (ör. 50). Geçerli **turdaki** sayı bu sayının
+     katına ulaştığında (`currentCount % milestoneInterval == 0`, tur
+     tamamlanınca sıfırlanan sayaç üzerinden — ömür boyu toplam üzerinden
+     değil, mevcut modelle tutarlı) normal tık yerine ayrı, üçüncü bir
+     ses/haptic karakteri çalar (normal sayım tıkı ve hedef tamamlama
+     sesinden farklı). Bu bir **sesli anons değil**, yalnızca ses/haptic
+     olduğu için VoiceOver konuşma kuyruğunu etkilemez, Hızlı Sayım'daki
+     kuyruk yönetimi kurallarını (Bölüm 5) bozmaz. Ücretli/ücretsiz kararı
+     şimdilik ertelendi (kullanıcı kararı) — önce özellik olarak
+     tasarlanıyor, monetizasyon konumlandırması Destekçi paketi kilidi
+     netleşirken (bkz. yukarısı) ayrıca değerlendirilecek.
+   - Core Haptics özel pattern'leri her cihazda desteklenmiyor;
+     `CHHapticEngine.capabilitiesForHardware().supportsHaptics` ile kontrol
+     edilir. Desteklenmeyen cihazda özel ücretli haptic profilleri seçilebilir
+     gösterilmez; uygunsa `UIImpactFeedbackGenerator` temel fallback'i
+     denenir. Bazı cihazlarda fallback de hissedilir çıktı garanti etmez;
+     sayım hatasız sürer ve hata alert'i gösterilmez. `CHHapticEngine`
+     `stoppedHandler`/`resetHandler` ile kesinti ve yeniden başlatmayı yönetir.
+     Hızlı girdide ses/haptic olayları kuyruklanmaz; gecikmiş geri bildirim
+     atılır/coalesce edilir. **(2. uzman görüşü eklemesi)** Donanım desteği
+     olsa bile `CHHapticEngine` başlatma (`try engine.start()`) arka planda
+     ses çalma veya sistem kaynağı çakışması gibi durumlarda çalışma zamanında
+     hata fırlatabilir; bu çağrı `do-catch` içine alınır, hata durumunda da
+     sessizce `UIImpactFeedbackGenerator` fallback'ine düşülür — donanım
+     kontrolü tek başına yeterli değildir.
+
+6. **Kapsam dışı bırakılan / revize edilen yaratıcı öneriler** (1. ve 2.
+   uzman görüşü sentezlendi, 2026-07-16):
+   - Global sessiz saatler Faz 2'den çıkarıldı — **iki görüş de hemfikir**.
+     Kullanıcının açıkça seçtiği saati uygulamanın sessizce bastırması/
+     taşıması beklenmedik olur; iOS Odak/Rahatsız Etme/Bildirim Özeti zaten
+     kesinti yönetimi sunuyor, kendi mantığımız bunlarla çakışabilir.
+   - "Bugünün Zikri" nazik önerisi çıkarıldı — **iki görüş de hemfikir**:
+     pasif olsa bile bir "dürtme" (nudge), suçluluk hissettirmeme ilkesiyle
+     çelişir; ayrıca dinî editoryal seçim ve yeni ürün davranışı getirir.
+   - **Bildirim gruplama — 2. görüşle revize edildi, kısmen geri alındı.**
+     1. görüş, Claude'un orijinal önerisini ("aynı saatteki hatırlatıcıları
+     tek bir metinde birleştir", ör. "3 zikriniz için hatırlatıcı zamanı")
+     haklı olarak reddetmişti — bu, tüm zamanlamanın yeniden hesaplanmasını
+     ve birleşik içerik/deep link belirsizliğini gerektirir, Faz 2 için
+     pahalıdır ve **hâlâ kapsam dışıdır**. Ancak 2. görüşün ayrı önerisi —
+     her hatırlatıcı ayrı, bağımsız bir bildirim kalıp yalnız
+     `UNMutableNotificationContent.threadIdentifier`'a sabit bir string
+     (ör. `"tesbihim_hatirlaticilar"`) atanması — gerçekten farklı ve ucuz
+     bir özellik: zamanlama/içerik/deep link hiç değişmez, yalnızca Bildirim
+     Merkezi'nde görsel olarak yığınlanır. Maliyeti tek satır olduğu ve
+     zamanlama karmaşıklığı getirmediği için **kabul edildi**: her
+     hatırlatıcı isteği `threadIdentifier = "tesbihim_hatirlaticilar"` ile
+     oluşturulur. Aynı zikrin aynı gün/saat kaydı yine tekilleştirilir
+     (duplicate engellenir).
+   - **İkon/renk rozeti — bu checkpoint'in kapsamında değil, ertelendi.**
+     2. görüş dekoratif olarak değerli bulup VoiceOver'da laf kalabalığı
+     yaratmaması için erişilebilirlik ağacından gizlenmesi gerektiğini not
+     etti (haklı bir teknik uyarı, ileride uygulanırsa dikkate alınacak);
+     yine de bu öneri veri modeli/silme/bildirim kilidinin bir parçası
+     değil, saf görsel liste iyileştirmesi olduğundan Bölüm 7.7'nin kabul
+     kriterlerine dahil edilmedi, ayrı, düşük riskli bir iyileştirme olarak
+     ileride ele alınabilir.
+
+**Dış görüş kaydı ve kabul sonucu**:
+- Görüş 1: `uzman-gorusleri/2026-07-16-zikir-yonetimi-taslagi.md` — veri
+  modeli üçe ayrımı, "Kaldır" + ayrı kalıcı silme, bildirim izin state
+  machine'i, ücretsiz/ücretli ses-haptic sınırı kabul edildi; sessiz saatler,
+  bildirim gruplama (o zamanki haliyle: içerik birleştirme), rozet ve
+  "Bugünün Zikri" kapsam dışına alındı.
+- Görüş 2: `uzman-gorusleri/2026-07-16-zikir-yonetimi-taslagi-2-gorus.md` —
+  veri modeli, bildirim izin akışı ve ücretli ses/haptic konumlandırması
+  1. görüşle aynı yönde doğrulandı (ek: `accessibilityHint` örneği, Core
+  Haptics `do-catch` önerisi kabul edildi); özel zikirlerde tek adımlı kalıcı
+  silme önerisi hedef kitle (yaşlı/motor beceri zayıflığı) gerekçesiyle
+  reddedildi, bunun yerine Kaldırılanlar'a **30 gün otomatik kalıcı silme**
+  eklendi; `openSettingsURLString` önerisi daha az spesifik olduğu için
+  reddedildi, mevcut `openNotificationSettingsURLString` korundu; **hafif
+  `threadIdentifier` görsel bildirim gruplaması** (içerik birleştirme değil)
+  bu görüşle ayrıştırılıp kabul edildi; ikon/renk rozeti kapsam dışı kaldı
+  ama VoiceOver gizleme uyarısı ileriye not edildi.
+
+Her iki görüş de değerlendirilip yukarıdaki kurallara işlendi; bu bölüm artık
+Faz 2 kodlaması için kilitli tasarımdır.
 
 ## 8. Monetizasyon Uygulama Detayı
 
@@ -602,11 +948,31 @@ resim gerekiyor.
 **Ama uygulamanın kendisi (kodlama) faz faz ilerleyecek**, tek seferde her şeyi
 inşa etmeyeceğiz:
 
-1. Proje iskeleti (XcodeGen, boş hedefler, CI/test altyapısı)
+1. **[TAMAMLANDI — 2026-07-15]** Proje iskeleti (XcodeGen, boş hedefler,
+   CI/test altyapısı) — `project.yml`, 4 sekmeli boş ekran iskeleti
+   (Sayaç/Kütüphane/Geçmiş/Ayarlar) + Karşılama view'ı, `DhikrDefinition`/
+   `CounterState`/`UserSettings` domain model taslakları, `TesbihimAppTests`
+   ve `TesbihimProjectTests` (proje konfigürasyon testleri) yerelde
+   build+test edildi, GitHub Actions CI ve fastlane iskeleti eklendi, ilk
+   git commit'i atıldı.
 2. Sayaç ekranı + veri modeli (zikir çekmenin çekirdek deneyimi)
 3. Hızlı Sayım / erişilebilirlik katmanı
 4. Zikir kütüphanesi (hazır zikirler; özel zikir ekleme Faz 2'de)
-5. Geçmiş + ayarlar
+5. Geçmiş + ayarlar. Geçmiş geçişi küçük UI eklemesi değil, şu sıralı ve her
+   biri ayrı test edilebilir alt adımlarla yürütülür:
+   1. Mevcut `CounterState` + `HistoryEntry` verisini yedekli biçimde sürümlü
+      `CounterHistorySnapshot` zarfına ve `localDayKey` modeline taşı.
+   2. `LastIncrement` gün/zikir snapshot'ını ve birleşik atomik repository
+      yazma sözleşmesini tamamla; gece yarısı Geri Al ve yazma hatası testlerini
+      geçir.
+   3. Saf dönem/istatistik hesaplayıcısını Bugün/Hafta/Ay/Tümü kurallarıyla
+      ekle ve sınır/eşitlik/ortalama testlerini geçir.
+   4. Ana Geçmiş ekranı, dönem seçimi, zikir ayrıntısı ve ayrı Gün Gün İncele
+      akışını kur.
+   5. Swift Charts grafiği + `accessibilityChartDescriptor`, Dynamic Type,
+      VoiceOver, Switch Control ve yerelleştirilmiş sayı biçimlerini doğrula.
+   6. Zikir özelinde geçmiş silme, tüm geçmişi silme, tüm veriyi silme ve
+      bozuk veri kurtarma akışlarını ekle/test et.
 6. StoreKit entegrasyonu
 7. Cilalama: tema, ses, Liquid Glass detayları
 8. TestFlight'a çıkış, gerçek kullanıcı (yaşlı + VoiceOver) testi
@@ -649,16 +1015,52 @@ noktalarda alınacak:
      Dynamic Type, native PageControl'ün görünür "1/3" metni ve
      Devam/Başla düğmesiyle birlikte geri getirilmesi).
    Artık kodlamaya (Bölüm 12 adım 1) geçilebilir.
-2. **Faz 1 MVP kod tamamlanınca, TestFlight'a çıkmadan önce** (Bölüm 12
+2. **[TAMAMLANDI — 2026-07-16] Faz 2 Zikir Yönetimi taslağı iki bağımsız
+   uzman görüşüyle kilitlendi** (Bölüm 7.7).
+   - Görüş 1: `uzman-gorusleri/2026-07-16-zikir-yonetimi-taslagi.md`.
+   - Görüş 2: `uzman-gorusleri/2026-07-16-zikir-yonetimi-taslagi-2-gorus.md`.
+   - Kabul edilen ana düzeltmeler: değişmez hazır kaynak + ayrı özel zikir +
+     üç durumlu kullanıcı override modeli; geri alınabilir işlemin "Kaldır"
+     olarak adlandırılması ve yalnız özel zikirde Kaldırılanlar içinden kalıcı
+     silme (+ 2. görüşle eklenen 30 gün otomatik kalıcı silme); geçmiş adının
+     kayıt anında snapshot alınması; bağlamsal bildirim izni için tam durum
+     makinesi ve doğrudan sistem bildirim ayarı bağlantısı
+     (`openNotificationSettingsURLString`, 2. görüşün daha az spesifik
+     alternatifi reddedildi); ücretsiz temel feedback kontrollerinin
+     korunması; Core Haptics destek/kesinti/backlog kuralları + 2. görüşle
+     eklenen `do-catch` başlatma güvenliği; hafif `threadIdentifier` görsel
+     bildirim gruplaması (2. görüşle, içerik birleştirmeden ayrıştırılarak
+     kabul edildi). Sessiz saatler, içerik-birleştiren bildirim gruplaması,
+     rozet ve Bugünün Zikri bu kapsamdan çıkarıldı (iki görüş de hemfikir).
+3. **[TAMAMLANDI — 2026-07-16] Geçmiş/İstatistikler revizyonu bağımsız dış
+   görüşle süzgeçten geçirildi.** Kaynak:
+   `uzman-gorusleri/2026-07-16-gecmis-istatistikler-degerlendirme.md`.
+   - Kabul: ayrı transaction coordinator yerine küçük veri hacminde
+     sayaç+geçmişi tek sürümlü zarf/atomik dosya yazımıyla birleştirme;
+     Tümü günlük ortalamasını kaldırma; Gün Gün İncele'yi VoiceOver odağını
+     kısaltan ayrı alt ekran yapma; grafik descriptor, Dynamic Type, Switch
+     Control ve sayı yerelleştirmesi için somut kabul kriterleri; CloudKit'te
+     günlük agregaların son-yazan-kazanır ile veri kaybedebileceğini açık risk
+     olarak kaydetme; Bölüm 12 Geçmiş adımını migrasyon→bütünlük→hesaplayıcı→
+     UI→grafik/erişilebilirlik→silme/kurtarma sırasına bölme.
+   - Zaten şartnamede bulunan ama mevcut kodda henüz uygulanmamış doğrulamalar:
+     `LastIncrement` gün/zikir snapshot'ı, `localDayKey` migrasyonu ve bozuk
+     veri karantinası. Bunlar yeni ürün kararı değil, uygulama planının zorunlu
+     veri bütünlüğü işleridir.
+   - Reddedildi: "Sayacı Sıfırla" ile "Bu Zikrin Geçmişini Sil"i bütün zikir
+     detaylarında aynı gruba koymak. Mevcut `CounterState` yalnız aktif sayaç
+     tutar; seçili olmayan zikrin ayrı sıfırlanabilir sayacı yoktur. Bu öneri
+     yanlış zihinsel model yaratır; mevcut ayrım korunur.
+4. **Faz 1 MVP kod tamamlanınca, TestFlight'a çıkmadan önce** (Bölüm 12
    adım 6→7 arası). Girdi: çalışan build'den ekran görüntüleri/kısa ekran
    kaydı + kod değil, davranış odaklı özet. Odak: tasarlanan akışla
    gerçek uygulanan davranış örtüşüyor mu, VoiceOver testinde kaçan bir
    şey var mı.
-3. **App Store gönderiminden hemen önce** (Bölüm 12 adım 9, Bölüm 11
+5. **App Store gönderiminden hemen önce** (Bölüm 12 adım 9, Bölüm 11
    yayın kapısı ile birlikte). Odak: Apple guideline uyumu (IAP dili,
    gizlilik beyanı, App Review notu), önceki iki turun kapsamadığı
    "compliance" riski.
-4. **Faz 2 başlarken**, iCloud senkron çakışma kuralı ve widget'ın sayımı
+5. **Faz 2 başlarken**, iCloud senkron çakışma kuralı ve widget'ın sayımı
    doğrudan artırıp artırmayacağı kararları netleşmeden önce — bunlar
    Faz 1'de bilerek ertelenmiş, geri dönüşü nispeten pahalı mimari
    kararlar.

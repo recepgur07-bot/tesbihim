@@ -17,6 +17,18 @@
           }
         }
       }
+    },
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "TesbihimApp"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -21,4 +21,8 @@ struct XcodeProjectConfigurationTests {
     @Test func doesNotDeclareNonExemptEncryption() {
         #expect(info["ITSAppUsesNonExemptEncryption"] as? Bool == false)
     }
+
+    @Test func privacyManifestIsBundled() {
+        #expect(appBundle.url(forResource: "PrivacyInfo", withExtension: "xcprivacy") != nil)
+    }
 }
